@@ -6,7 +6,12 @@
 
 #include "../backend/vulkan/dynamic_constants.h"
 #include "../backend/vulkan/shader.h"
-#include "Resource.h"
+#include "../backend/vulkan/barrier.h"
+#include "../backend/vulkan/ray_tracing.h"
+#include "../backend/vulkan/device.h"
+#include "../backend/vulkan/image.h"
+#include "resource.h"
+#include "graph.h"
 
 namespace tekki::render_graph
 {
@@ -15,54 +20,17 @@ namespace tekki::render_graph
 struct RenderGraphExecutionParams;
 struct RenderGraphPipelines;
 
-// Pending resource info
-struct PendingRenderResourceInfo
-{
-    // GraphResourceInfo resource; // Will be defined later
-};
+// Forward declarations for pipeline types
+class ComputePipeline;
+class RasterPipeline;
+class RayTracingPipeline;
 
-// Any render resource variant
-class AnyRenderResource
-{
-public:
-    enum class Type
-    {
-        OwnedImage,
-        ImportedImage,
-        OwnedBuffer,
-        ImportedBuffer,
-        ImportedRayTracingAcceleration,
-        Pending
-    };
-
-    Type type;
-    std::variant<Image, std::shared_ptr<Image>, Buffer, std::shared_ptr<Buffer>,
-                 std::shared_ptr<RayTracingAcceleration>, PendingRenderResourceInfo>
-        data;
-
-    AnyRenderResourceRef borrow() const;
-};
-
-// Any render resource reference
-class AnyRenderResourceRef
-{
-public:
-    enum class Type
-    {
-        Image,
-        Buffer,
-        RayTracingAcceleration
-    };
-
-    Type type;
-    std::variant<const Image*, const Buffer*, const RayTracingAcceleration*> data;
-};
 
 // Registry resource
 struct RegistryResource
 {
     AnyRenderResource resource;
-    vk_sync::AccessType access_type;
+    backend::vulkan::AccessType access_type;
 };
 
 // Resource registry
@@ -75,63 +43,64 @@ public:
     RenderGraphPipelines pipelines;
 
     // Image access methods
-    template <typename ViewType> const Image* image(const Ref<ImageResource, ViewType>& resource)
+    template <typename ViewType> const backend::vulkan::Image* image(const Ref<ImageResource, ViewType>& resource)
     {
         return image_from_raw_handle<ViewType>(resource.handle);
     }
 
-    template <typename ViewType> const Image* image_from_raw_handle(GraphRawResourceHandle handle)
+    template <typename ViewType> const backend::vulkan::Image* image_from_raw_handle(GraphRawResourceHandle handle)
     {
         auto& reg_resource = resources[handle.id];
         auto ref = reg_resource.resource.borrow();
         if (ref.type == AnyRenderResourceRef::Type::Image)
         {
-            return std::get<const Image*>(ref.data);
+            return std::get<const backend::vulkan::Image*>(ref.data);
         }
         throw std::runtime_error("Resource is not an image");
     }
 
     // Buffer access methods
-    template <typename ViewType> const Buffer* buffer(const Ref<BufferResource, ViewType>& resource)
+    template <typename ViewType> const backend::vulkan::Buffer* buffer(const Ref<BufferResource, ViewType>& resource)
     {
         return buffer_from_raw_handle<ViewType>(resource.handle);
     }
 
-    template <typename ViewType> const Buffer* buffer_from_raw_handle(GraphRawResourceHandle handle)
+    template <typename ViewType> const backend::vulkan::Buffer* buffer_from_raw_handle(GraphRawResourceHandle handle)
     {
         auto& reg_resource = resources[handle.id];
         auto ref = reg_resource.resource.borrow();
         if (ref.type == AnyRenderResourceRef::Type::Buffer)
         {
-            return std::get<const Buffer*>(ref.data);
+            return std::get<const backend::vulkan::Buffer*>(ref.data);
         }
         throw std::runtime_error("Resource is not a buffer");
     }
 
     // Ray tracing acceleration access methods
     template <typename ViewType>
-    const RayTracingAcceleration* rt_acceleration(const Ref<RayTracingAccelerationResource, ViewType>& resource)
+    const backend::vulkan::AccelerationStructure* rt_acceleration(const Ref<RayTracingAccelerationResource, ViewType>& resource)
     {
         return rt_acceleration_from_raw_handle<ViewType>(resource.handle);
     }
 
     template <typename ViewType>
-    const RayTracingAcceleration* rt_acceleration_from_raw_handle(GraphRawResourceHandle handle)
+    const backend::vulkan::AccelerationStructure* rt_acceleration_from_raw_handle(GraphRawResourceHandle handle)
     {
         auto& reg_resource = resources[handle.id];
         auto ref = reg_resource.resource.borrow();
         if (ref.type == AnyRenderResourceRef::Type::RayTracingAcceleration)
         {
-            return std::get<const RayTracingAcceleration*>(ref.data);
+            return std::get<const backend::vulkan::AccelerationStructure*>(ref.data);
         }
         throw std::runtime_error("Resource is not a ray tracing acceleration");
     }
 
     // Image view creation
-    vk::ImageView image_view(GraphRawResourceHandle resource, const ImageViewDesc& view_desc)
+    vk::ImageView image_view(GraphRawResourceHandle resource, const backend::vulkan::ImageViewDesc& view_desc)
     {
         auto image = image_from_raw_handle<GpuSrv>(resource);
-        return image->view(execution_params->device, view_desc);
+        // TODO: Implement proper image view creation
+        return vk::ImageView{};
     }
 
     // Pipeline access methods

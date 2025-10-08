@@ -8,8 +8,9 @@
 
 #include <memory>
 #include <vulkan/vulkan.hpp>
+#include <vk_mem_alloc.h>
 
-#include "core/common.h"
+#include "tekki/core/common.h"
 
 namespace tekki::backend::vulkan
 {
@@ -31,36 +32,40 @@ struct ImageDesc
     static ImageDesc new_2d(uint32_t width, uint32_t height, vk::Format format, vk::ImageUsageFlags usage,
                             uint32_t mip_levels = 1, uint32_t array_layers = 1)
     {
-        return ImageDesc{.extent = {width, height, 1},
-                         .format = format,
-                         .usage = usage,
-                         .image_type = vk::ImageType::e2D,
-                         .mip_levels = mip_levels,
-                         .array_layers = array_layers,
-                         .samples = vk::SampleCountFlagBits::e1,
-                         .tiling = vk::ImageTiling::eOptimal,
-                         .initial_layout = vk::ImageLayout::eUndefined};
+        ImageDesc desc;
+        desc.extent = vk::Extent3D{width, height, 1};
+        desc.format = format;
+        desc.usage = usage;
+        desc.image_type = vk::ImageType::e2D;
+        desc.mip_levels = mip_levels;
+        desc.array_layers = array_layers;
+        desc.samples = vk::SampleCountFlagBits::e1;
+        desc.tiling = vk::ImageTiling::eOptimal;
+        desc.initial_layout = vk::ImageLayout::eUndefined;
+        return desc;
     }
 
     static ImageDesc new_3d(uint32_t width, uint32_t height, uint32_t depth, vk::Format format,
                             vk::ImageUsageFlags usage, uint32_t mip_levels = 1)
     {
-        return ImageDesc{.extent = {width, height, depth},
-                         .format = format,
-                         .usage = usage,
-                         .image_type = vk::ImageType::e3D,
-                         .mip_levels = mip_levels,
-                         .array_layers = 1,
-                         .samples = vk::SampleCountFlagBits::e1,
-                         .tiling = vk::ImageTiling::eOptimal,
-                         .initial_layout = vk::ImageLayout::eUndefined};
+        ImageDesc desc;
+        desc.extent = vk::Extent3D{width, height, depth};
+        desc.format = format;
+        desc.usage = usage;
+        desc.image_type = vk::ImageType::e3D;
+        desc.mip_levels = mip_levels;
+        desc.array_layers = 1;
+        desc.samples = vk::SampleCountFlagBits::e1;
+        desc.tiling = vk::ImageTiling::eOptimal;
+        desc.initial_layout = vk::ImageLayout::eUndefined;
+        return desc;
     }
 };
 
 class Image
 {
 public:
-    Image(vk::Image image, const ImageDesc& desc, class SubAllocation allocation);
+    Image(vk::Image image, const ImageDesc& desc, VmaAllocation allocation);
     ~Image();
 
     // Getters
@@ -76,7 +81,7 @@ public:
 private:
     vk::Image image_;
     ImageDesc desc_;
-    class SubAllocation allocation_;
+    VmaAllocation allocation_;
 };
 
 class ImageView

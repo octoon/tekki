@@ -11,7 +11,7 @@
 #include <string>
 #include <vulkan/vulkan.hpp>
 
-#include "core/common.h"
+#include "tekki/core/common.h"
 
 namespace tekki::backend::vulkan
 {

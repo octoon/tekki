@@ -3,12 +3,12 @@
 // Main render graph module header
 // This provides the public interface for the render graph system
 
-#include "Graph.h"
-#include "PassApi.h"
-#include "PassBuilder.h"
-#include "Resource.h"
-#include "ResourceRegistry.h"
-#include "Temporal.h"
+#include "graph.h"
+#include "pass_api.h"
+#include "pass_builder.h"
+#include "resource.h"
+#include "resource_registry.h"
+#include "temporal.h"
 
 namespace tekki::render_graph
 {

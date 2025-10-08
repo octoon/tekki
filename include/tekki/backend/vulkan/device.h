@@ -7,13 +7,15 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vulkan/vulkan.hpp>
 
 #include "buffer.h"
-#include "core/common.h"
+#include "queue_family.h"
+#include "tekki/core/common.h"
 #include "dlss.h"
 #include "profiler.h"
 
@@ -26,7 +28,7 @@ class Instance;
 struct Queue
 {
     vk::Queue raw;
-    class QueueFamily family;
+    QueueFamily family;
 };
 
 struct SamplerDesc

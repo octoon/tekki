@@ -12,7 +12,7 @@
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
-#include "core/common.h"
+#include "tekki/core/common.h"
 
 namespace tekki::backend::vulkan
 {
@@ -78,7 +78,7 @@ struct PipelineLayoutDescHash
         std::size_t hash = 0;
         for (auto layout : desc.descriptor_set_layouts)
         {
-            hash ^= std::hash<uint64_t>{}(reinterpret_cast<uint64_t>(layout));
+            hash ^= std::hash<uint64_t>{}(reinterpret_cast<uint64_t>(layout.operator VkDescriptorSetLayout()));
         }
         for (const auto& range : desc.push_constant_ranges)
         {

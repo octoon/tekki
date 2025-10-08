@@ -1,16 +1,20 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "../backend/vulkan/barrier.h"
 #include "../backend/vulkan/device.h"
 #include "../backend/vulkan/dynamic_constants.h"
 #include "../backend/vulkan/shader.h"
 #include "../backend/vulkan/transient_resource_cache.h"
-#include "Resource.h"
-#include "ResourceRegistry.h"
+#include "../backend/vulkan/buffer.h"
+#include "../backend/vulkan/image.h"
+#include "resource.h"
+#include "resource_registry.h"
 
 namespace tekki::render_graph
 {
@@ -18,6 +22,30 @@ namespace tekki::render_graph
 // Forward declarations
 class PassBuilder;
 struct RecordedPass;
+
+// Forward declarations for backend types
+namespace backend::vulkan {
+    class CommandBuffer;
+    class Device;
+    class Image;
+    class TransientResourceCache;
+}
+
+// Placeholder pipeline descriptions (to be properly defined later)
+struct ComputePipelineDesc {};
+struct RasterPipelineDesc {};
+struct RayTracingPipelineDesc {};
+struct PipelineShaderDesc {};
+
+// Placeholder pipeline types (to be properly defined later)
+class ComputePipeline {};
+class RasterPipeline {};
+class RayTracingPipeline {};
+
+// Placeholder types (to be properly defined later)
+struct FrameConstantsLayout {};
+struct PendingDebugPass {};
+struct CompiledRenderGraph {};
 
 // Resource creation info
 struct GraphResourceCreateInfo
@@ -38,7 +66,7 @@ struct GraphResourceImportInfo
 
     Type type;
     std::variant<std::shared_ptr<Image>, std::shared_ptr<Buffer>, std::shared_ptr<RayTracingAcceleration>> resource;
-    vk_sync::AccessType access_type;
+    backend::vulkan::AccessType access_type;
 };
 
 // Resource info
@@ -140,9 +168,9 @@ public:
     template <typename Desc> Handle<typename ResourceDescTraits<Desc>::ResourceType> create(const Desc& desc);
 
     // Resource import/export
-    template <typename Res> Handle<Res> import(std::shared_ptr<Res> resource, vk_sync::AccessType access_type);
+    template <typename Res> Handle<Res> import(std::shared_ptr<Res> resource, backend::vulkan::AccessType access_type);
 
-    template <typename Res> ExportedHandle<Res> export(Handle<Res> resource, vk_sync::AccessType access_type);
+    template <typename Res> ExportedHandle<Res> export(Handle<Res> resource, backend::vulkan::AccessType access_type);
 
     // Pass management
     PassBuilder add_pass(const std::string& name);
@@ -156,7 +184,7 @@ public:
 private:
     std::vector<RecordedPass> passes;
     std::vector<GraphResourceInfo> resources;
-    std::vector<std::pair<ExportableGraphResource, vk_sync::AccessType>> exported_resources;
+    std::vector<std::pair<ExportableGraphResource, backend::vulkan::AccessType>> exported_resources;
     std::vector<RgComputePipeline> compute_pipelines;
     std::vector<RgRasterPipeline> raster_pipelines;
     std::vector<RgRtPipeline> rt_pipelines;
@@ -176,8 +204,8 @@ private:
 template <typename Res> class ImportExportToRenderGraph
 {
 public:
-    static Handle<Res> import(std::shared_ptr<Res> self, RenderGraph& rg, vk_sync::AccessType access_type);
-    static ExportedHandle<Res> export(Handle<Res> resource, RenderGraph& rg, vk_sync::AccessType access_type);
+    static Handle<Res> import(std::shared_ptr<Res> self, RenderGraph& rg, backend::vulkan::AccessType access_type);
+    static ExportedHandle<Res> export(Handle<Res> resource, RenderGraph& rg, backend::vulkan::AccessType access_type);
 };
 
 // Type equality trait
@@ -190,7 +218,7 @@ template <typename T> struct TypeEquals
 // Execution parameters
 struct RenderGraphExecutionParams
 {
-    Device* device;
+    backend::vulkan::Device* device;
     PipelineCache* pipeline_cache;
     vk::DescriptorSet frame_descriptor_set;
     FrameConstantsLayout frame_constants_layout;
@@ -200,9 +228,9 @@ struct RenderGraphExecutionParams
 // Pipeline collections
 struct RenderGraphPipelines
 {
-    std::vector<ComputePipelineHandle> compute;
-    std::vector<RasterPipelineHandle> raster;
-    std::vector<RtPipelineHandle> rt;
+    std::vector<RgComputePipelineHandle> compute;
+    std::vector<RgRasterPipelineHandle> raster;
+    std::vector<RgRtPipelineHandle> rt;
 };
 
 // Compiled render graph
@@ -222,17 +250,17 @@ public:
 class ExecutingRenderGraph
 {
 public:
-    void record_main_cb(CommandBuffer* cb);
-    RetiredRenderGraph record_presentation_cb(CommandBuffer* cb, std::shared_ptr<Image> swapchain_image);
+    void record_main_cb(backend::vulkan::CommandBuffer* cb);
+    RetiredRenderGraph record_presentation_cb(backend::vulkan::CommandBuffer* cb, std::shared_ptr<backend::vulkan::Image> swapchain_image);
 
 private:
     std::vector<RecordedPass> passes;
     std::vector<GraphResourceInfo> resources;
-    std::vector<std::pair<ExportableGraphResource, vk_sync::AccessType>> exported_resources;
+    std::vector<std::pair<ExportableGraphResource, backend::vulkan::AccessType>> exported_resources;
     ResourceRegistry resource_registry;
 
-    static void record_pass_cb(RecordedPass pass, ResourceRegistry* resource_registry, CommandBuffer* cb);
-    static void transition_resource(Device* device, CommandBuffer* cb, RegistryResource* resource,
+    static void record_pass_cb(RecordedPass pass, ResourceRegistry* resource_registry, backend::vulkan::CommandBuffer* cb);
+    static void transition_resource(backend::vulkan::Device* device, backend::vulkan::CommandBuffer* cb, RegistryResource* resource,
                                     PassResourceAccessType access, bool debug, const std::string& dbg_str);
 };
 
@@ -240,7 +268,7 @@ private:
 class RetiredRenderGraph
 {
 public:
-    template <typename Res> std::pair<const Res*, vk_sync::AccessType> exported_resource(ExportedHandle<Res> handle);
+    template <typename Res> std::pair<const Res*, backend::vulkan::AccessType> exported_resource(ExportedHandle<Res> handle);
 
     void release_resources(TransientResourceCache& transient_resource_cache);
 
@@ -257,12 +285,15 @@ enum class PassResourceAccessSyncType
 
 struct PassResourceAccessType
 {
-    vk_sync::AccessType access_type;
+    ::tekki::backend::vulkan::AccessType access_type;
     PassResourceAccessSyncType sync_type;
 
-    static PassResourceAccessType new(vk_sync::AccessType access_type, PassResourceAccessSyncType sync_type)
+    static PassResourceAccessType create(::tekki::backend::vulkan::AccessType access_type, PassResourceAccessSyncType sync_type)
     {
-        return {access_type, sync_type};
+        PassResourceAccessType result;
+        result.access_type = access_type;
+        result.sync_type = sync_type;
+        return result;
     }
 };
 
@@ -282,9 +313,15 @@ struct RecordedPass
     std::string name;
     size_t idx;
 
-    static RecordedPass new(const std::string& name, size_t idx)
+    static RecordedPass create(const std::string& name, size_t idx)
     {
-        return {.read = {}, .write = {}, .render_fn = {}, .name = name, .idx = idx};
+        RecordedPass result;
+        result.read = {};
+        result.write = {};
+        result.render_fn = {};
+        result.name = name;
+        result.idx = idx;
+        return result;
     }
 };
 

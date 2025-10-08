@@ -6,6 +6,11 @@
 
 kajiya的源码见./kajiya目录。
 
+
+## 命名风格
+文件名主要以小写下划线风格为主。
+类名采用大驼峰，方法名和函数名也采用大驼峰。
+
 ## Key Project Information
 
 ### Build System & Dependencies

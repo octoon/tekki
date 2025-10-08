@@ -9,8 +9,8 @@
 #include "../backend/vulkan/dynamic_constants.h"
 #include "../backend/vulkan/image.h"
 #include "../backend/vulkan/shader.h"
-#include "Resource.h"
-#include "ResourceRegistry.h"
+#include "resource.h"
+#include "resource_registry.h"
 
 namespace tekki::render_graph
 {
@@ -199,10 +199,15 @@ template <BindRgRef T> RenderPassBinding bind_rg_ref(const T& ref)
 // Specialized bind methods for different resource types
 inline RenderPassBinding bind_rg_ref(const Ref<ImageResource, GpuSrv>& ref)
 {
-    return RenderPassBinding{.type = RenderPassBinding::Type::Image,
-                             .data = RenderPassImageBinding{.handle = ref.handle,
-                                                            .view_desc = ImageViewDesc{},
-                                                            .image_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL}};
+    RenderPassImageBinding image_binding;
+    image_binding.handle = ref.handle;
+    image_binding.view_desc = ImageViewDesc{};
+    image_binding.image_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+    RenderPassBinding binding;
+    binding.type = RenderPassBinding::Type::Image;
+    binding.data = image_binding;
+    return binding;
 }
 
 inline RenderPassBinding bind_rg_ref(const std::vector<Ref<ImageResource, GpuSrv>>& refs)
@@ -210,35 +215,63 @@ inline RenderPassBinding bind_rg_ref(const std::vector<Ref<ImageResource, GpuSrv
     std::vector<RenderPassImageBinding> bindings;
     for (const auto& ref : refs)
     {
-        bindings.push_back({.handle = ref.handle,
-                            .view_desc = ImageViewDesc{},
-                            .image_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL});
+        RenderPassImageBinding binding;
+        binding.handle = ref.handle;
+        binding.view_desc = ImageViewDesc{};
+        binding.image_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        bindings.push_back(binding);
     }
-    return RenderPassBinding{.type = RenderPassBinding::Type::ImageArray, .data = bindings};
+
+    RenderPassBinding result;
+    result.type = RenderPassBinding::Type::ImageArray;
+    result.data = bindings;
+    return result;
 }
 
 inline RenderPassBinding bind_rg_ref(const Ref<ImageResource, GpuUav>& ref)
 {
-    return RenderPassBinding{.type = RenderPassBinding::Type::Image,
-                             .data = RenderPassImageBinding{.handle = ref.handle,
-                                                            .view_desc = ImageViewDesc{},
-                                                            .image_layout = vk::ImageLayout::GENERAL}};
+    RenderPassImageBinding image_binding;
+    image_binding.handle = ref.handle;
+    image_binding.view_desc = ImageViewDesc{};
+    image_binding.image_layout = vk::ImageLayout::eGeneral;
+
+    RenderPassBinding binding;
+    binding.type = RenderPassBinding::Type::Image;
+    binding.data = image_binding;
+    return binding;
 }
 
 inline RenderPassBinding bind_rg_ref(const Ref<BufferResource, GpuSrv>& ref)
 {
-    return RenderPassBinding{.type = RenderPassBinding::Type::Buffer, .data = RenderPassBufferBinding{ref.handle}};
+    RenderPassBufferBinding buffer_binding;
+    buffer_binding.handle = ref.handle;
+
+    RenderPassBinding binding;
+    binding.type = RenderPassBinding::Type::Buffer;
+    binding.data = buffer_binding;
+    return binding;
 }
 
 inline RenderPassBinding bind_rg_ref(const Ref<BufferResource, GpuUav>& ref)
 {
-    return RenderPassBinding{.type = RenderPassBinding::Type::Buffer, .data = RenderPassBufferBinding{ref.handle}};
+    RenderPassBufferBinding buffer_binding;
+    buffer_binding.handle = ref.handle;
+
+    RenderPassBinding binding;
+    binding.type = RenderPassBinding::Type::Buffer;
+    binding.data = buffer_binding;
+    return binding;
 }
 
 inline RenderPassBinding bind_rg_ref(const Ref<RayTracingAccelerationResource, GpuSrv>& ref)
 {
-    return RenderPassBinding{.type = RenderPassBinding::Type::RayTracingAcceleration,
-                             .data = RenderPassRayTracingAccelerationBinding{ref.handle}};
+    RenderPassRayTracingAccelerationBinding rt_binding;
+    rt_binding.handle = ref.handle;
+
+    RenderPassBinding binding;
+    binding.type = RenderPassBinding::Type::RayTracingAcceleration;
+    binding.data = rt_binding;
+    return binding;
 }
 
 // Helper function for descriptor set binding

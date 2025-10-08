@@ -12,7 +12,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "buffer.h"
-#include "core/common.h"
+#include "tekki/core/common.h"
 
 namespace tekki::backend::vulkan
 {

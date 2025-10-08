@@ -47,16 +47,26 @@ target_link_libraries(tekki-backend
 )
 
 # Render graph library
-add_library(tekki-rg INTERFACE)
+add_library(tekki-rg STATIC
+    render_graph/graph.cpp
+    render_graph/resource.cpp
+    render_graph/resource_registry.cpp
+    render_graph/pass_api.cpp
+    render_graph/pass_builder.cpp
+    render_graph/temporal.cpp
+    render_graph/high_level.cpp
+    render_graph/renderer.cpp
+    render_graph/image_ops.cpp
+)
 
 target_include_directories(tekki-rg
-    INTERFACE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-rg
-    INTERFACE
+    PUBLIC
         tekki-backend
 )
 

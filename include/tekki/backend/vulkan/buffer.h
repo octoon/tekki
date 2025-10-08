@@ -9,8 +9,9 @@
 #include <memory>
 #include <optional>
 #include <vulkan/vulkan.hpp>
+#include <vk_mem_alloc.h>
 
-#include "core/common.h"
+#include "tekki/core/common.h"
 
 namespace tekki::backend::vulkan
 {
@@ -33,25 +34,37 @@ struct BufferDesc
 
     static BufferDesc new_gpu_only(size_t size, vk::BufferUsageFlags usage)
     {
-        return BufferDesc{
-            .size = size, .usage = usage, .memory_location = MemoryLocation::GpuOnly, .alignment = std::nullopt};
+        BufferDesc desc;
+        desc.size = size;
+        desc.usage = usage;
+        desc.memory_location = MemoryLocation::GpuOnly;
+        desc.alignment = std::nullopt;
+        return desc;
     }
 
     static BufferDesc new_cpu_to_gpu(size_t size, vk::BufferUsageFlags usage)
     {
-        return BufferDesc{
-            .size = size, .usage = usage, .memory_location = MemoryLocation::CpuToGpu, .alignment = std::nullopt};
+        BufferDesc desc;
+        desc.size = size;
+        desc.usage = usage;
+        desc.memory_location = MemoryLocation::CpuToGpu;
+        desc.alignment = std::nullopt;
+        return desc;
     }
 
     static BufferDesc new_gpu_to_cpu(size_t size, vk::BufferUsageFlags usage)
     {
-        return BufferDesc{
-            .size = size, .usage = usage, .memory_location = MemoryLocation::GpuToCpu, .alignment = std::nullopt};
+        BufferDesc desc;
+        desc.size = size;
+        desc.usage = usage;
+        desc.memory_location = MemoryLocation::GpuToCpu;
+        desc.alignment = std::nullopt;
+        return desc;
     }
 
-    BufferDesc& alignment(uint64_t alignment)
+    BufferDesc& set_alignment(uint64_t align)
     {
-        this->alignment = alignment;
+        this->alignment = align;
         return *this;
     }
 
@@ -65,7 +78,7 @@ struct BufferDesc
 class Buffer
 {
 public:
-    Buffer(vk::Buffer buffer, const BufferDesc& desc, class SubAllocation allocation);
+    Buffer(vk::Buffer buffer, const BufferDesc& desc, VmaAllocation allocation);
     ~Buffer();
 
     // Getters
@@ -80,7 +93,7 @@ public:
 private:
     vk::Buffer buffer_;
     BufferDesc desc_;
-    class SubAllocation allocation_;
+    VmaAllocation allocation_;
 };
 
 } // namespace tekki::backend::vulkan

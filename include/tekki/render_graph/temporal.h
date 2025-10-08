@@ -5,7 +5,7 @@
 #include <unordered_map>
 
 #include "../backend/vulkan/device.h"
-#include "Graph.h"
+#include "graph.h"
 
 namespace tekki::render_graph
 {
@@ -83,7 +83,7 @@ struct TemporalResourceState
     std::variant < struct
     {
         TemporalResource resource;
-        vk_sync::AccessType access_type;
+        backend::vulkan::AccessType access_type;
     }, struct
     {
         TemporalResource resource;
