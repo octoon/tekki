@@ -1,0 +1,76 @@
+# Original kajiya source (kept for reference, but excluded from repo)
+/kajiya/
+
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Conan
+conan_cache/
+CMakeUserPresets.json
+CMakeLists.txt.user
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled Object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+*.lai
+*.la
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Cache
+cache/
+
+# Asset output
+assets/generated/
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Qt
+*.pro.user
+*.autosave
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Runtime state files
+view_state.ron
+*.log
+
+# DirectX shader compiler binaries (platform-specific)
+dxcompiler.dll
+libdxcompiler.so
+libdxcompiler.dynlib

@@ -1,0 +1,19 @@
+tekki - C++ port of kajiya renderer
+Copyright (c) 2025 tekki Contributors
+
+This project is made available under the terms of the MIT License OR the Apache License, Version 2.0.
+
+You may choose either license to govern your use of this software.
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+
+- The text of the MIT License can be found in `LICENSE-MIT`.
+- The text of the Apache License, Version 2.0 can be found in `LICENSE-APACHE`.
+
+This project is a translation of the Embark Studios project "kajiya" (https://github.com/EmbarkStudios/kajiya),
+which is distributed under the same dual license. Source material from kajiya retains its original copyright
+notices and licensing terms.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in tekki by you,
+as defined in the Apache License, Version 2.0, shall be dual licensed as above, without any additional terms or
+conditions.
