@@ -1,0 +1,16 @@
+{
+    "cmake.configureOnOpen": true,
+    "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+    "cmake.generator": "Visual Studio 17 2022",
+    "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/build/debug/build/generators/conan_toolchain.cmake"
+    },
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "files.associations": {
+        "*.hpp": "cpp",
+        "*.cpp": "cpp",
+        "*.h": "c",
+        "*.c": "c"
+    },
+    "C_Cpp.errorSquiggles": "enabled"
+}

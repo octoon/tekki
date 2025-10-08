@@ -12,7 +12,6 @@ CMakeUserPresets.json
 CMakeLists.txt.user
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo

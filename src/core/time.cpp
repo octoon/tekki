@@ -2,9 +2,9 @@
 // Copyright (c) 2025 tekki Contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#include "core/time.hpp"
+#include "core/time.h"
 
-#include "core/log.hpp"
+#include "core/log.h"
 
 #include <chrono>
 #include <ctime>

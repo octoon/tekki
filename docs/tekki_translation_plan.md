@@ -116,12 +116,12 @@ tekki/
 
 ## 3. 翻译策略与步骤
 
-1. **基础设施阶段**
+1. **基础设施阶段** ✅ **已完成**
    - 选择构建系统（CMake + Conan/vcpkg），搭建最小可编译骨架。
    - 引入基础依赖：GLM、spdlog、magic_enum、imgui、volk/Vulkan SDK、EnTT（若需要 ECS）、VMA。
    - 实现 `src/core` 公共模块（日志、时间、配置、数学向量/矩阵、错误处理）。
 
-2. **Vulkan 后端迁移**
+2. **Vulkan 后端迁移** ✅ **已完成**
    - 将 `kajiya-backend` 的设备/资源管理按模块翻译为 C++ 类，保持 RAII。
    - 重写 shader/pipeline 编译缓存，兼容 SPIR-V 输入；评估保留 `rust-gpu` 输出或改写为 GLSL/HLSL。
    - 实现瞬时资源缓存、动态常量缓冲、同步工具。
@@ -170,7 +170,7 @@ tekki/
 | 阶段 | 交付内容 | 预估周期 | 状态 |
 | --- | --- | --- | --- |
 | M1 基础设施 | CMake 骨架、core 模块、后台空实现编译通过 | 2-3 周 | ✅ **已完成** |
-| M2 Vulkan 后端 | 完成资源管理、命令录制、同步、Shader 编译 | 4-6 周 | ⏳ 待开始 |
+| M2 Vulkan 后端 | 完成资源管理、命令录制、同步、Shader 编译、GPU Profiler、DLSS | 4-6 周 | ✅ **已完成** |
 | M3 Render Graph | 图构建、资源追踪、Temporal 支持、单元测试 | 3-4 周 | ⏳ 待开始 |
 | M4 世界渲染器 | Mesh/实例/TLAS、关键渲染 pass、UI 挂钩 | 6-8 周 | ⏳ 待开始 |
 | M5 工具链 | Viewer、Asset Baker、Hello Demo | 3-4 周 | ⏳ 待开始 |

@@ -6,6 +6,16 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Create a common compile definitions interface
+add_library(tekki_compile_options INTERFACE)
+
+# Enable filesystem library
+if(MSVC)
+    target_compile_options(tekki_compile_options INTERFACE /std:c++latest)
+else()
+    target_compile_options(tekki_compile_options INTERFACE -std=c++20)
+endif()
+
 # Options
 option(TEKKI_WITH_DLSS "Enable DLSS support" OFF)
 option(TEKKI_WITH_VALIDATION "Enable Vulkan validation layers" ON)
@@ -36,9 +46,6 @@ if(MSVC)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
-
-# Create a common compile definitions interface
-add_library(tekki_compile_options INTERFACE)
 target_compile_definitions(tekki_compile_options INTERFACE
     $<$<CONFIG:Debug>:TEKKI_DEBUG>
     $<$<CONFIG:Release>:TEKKI_RELEASE>

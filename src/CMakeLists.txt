@@ -1,13 +1,13 @@
 # Core library - fundamental utilities and types
 add_library(tekki-core STATIC
     core/log.cpp
-    core/log.hpp
+    core/log.h
     core/error.hpp
     core/common.hpp
     core/time.cpp
-    core/time.hpp
+    core/time.h
     core/config.cpp
-    core/config.hpp
+    core/config.h
 )
 
 target_include_directories(tekki-core
@@ -23,6 +23,13 @@ target_link_libraries(tekki-core
         spdlog::spdlog
         nlohmann_json::nlohmann_json
 )
+
+# Link filesystem library
+if(MSVC)
+    # MSVC automatically links filesystem with C++17+
+else()
+    target_link_libraries(tekki-core PUBLIC stdc++fs)
+endif()
 
 # Backend library - Vulkan wrapper and GPU management
 add_library(tekki-backend INTERFACE)

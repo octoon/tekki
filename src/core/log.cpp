@@ -2,7 +2,7 @@
 // Copyright (c) 2025 tekki Contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#include "core/log.hpp"
+#include "core/log.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace tekki::log {
