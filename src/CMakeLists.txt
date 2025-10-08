@@ -4,7 +4,10 @@ add_library(tekki-core STATIC
     core/log.hpp
     core/error.hpp
     core/common.hpp
-    # Will be populated during translation
+    core/time.cpp
+    core/time.hpp
+    core/config.cpp
+    core/config.hpp
 )
 
 target_include_directories(tekki-core
@@ -18,6 +21,7 @@ target_link_libraries(tekki-core
         glm::glm
         fmt::fmt
         spdlog::spdlog
+        nlohmann_json::nlohmann_json
 )
 
 # Backend library - Vulkan wrapper and GPU management

@@ -1,0 +1,16 @@
+{
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "tekki viewer"
+  },
+  "logging": {
+    "level": "info"
+  },
+  "renderer": {
+    "validation": true
+  },
+  "bootstrap": {
+    "frame_limit": 0
+  }
+}
