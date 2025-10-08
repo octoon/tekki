@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/buffer.rs
 
-#include "backend/vulkan/buffer.h"
+#include "../../include/tekki/backend/vulkan/buffer.h"
 
 #include <spdlog/spdlog.h>
 

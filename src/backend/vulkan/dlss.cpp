@@ -4,15 +4,15 @@
 
 // Original Rust: kajiya/crates/lib/kajiya/src/renderers/dlss.rs
 
-#include "backend/vulkan/dlss.h"
+#include "../../include/tekki/backend/vulkan/dlss.h"
 
 #include <cassert>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
 
-#include "backend/vulkan/device.h"
-#include "backend/vulkan/image.h"
+#include "../../include/tekki/backend/vulkan/device.h"
+#include "../../include/tekki/backend/vulkan/image.h"
 
 namespace tekki::backend::vulkan
 {

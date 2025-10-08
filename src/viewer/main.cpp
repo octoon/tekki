@@ -2,10 +2,10 @@
 // Copyright (c) 2025 tekki Contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#include "core/common.hpp"
-#include "core/config.h"
-#include "core/log.h"
-#include "core/time.h"
+#include "../../include/tekki/core/common.hpp"
+#include "../../include/tekki/core/config.h"
+#include "../../include/tekki/core/log.h"
+#include "../../include/tekki/core/time.h"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>

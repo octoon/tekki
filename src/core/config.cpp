@@ -2,7 +2,7 @@
 // Copyright (c) 2025 tekki Contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#include "core/config.h"
+#include "../../include/tekki/core/config.h"
 
 #include <cctype>
 #include <fstream>

@@ -22,42 +22,62 @@ kajiya的源码见./kajiya目录。
 ```
 tekki/
     kajiya/             # Original Rust source (reference)
+    include/            # Public headers
+        tekki/
+            core/       # Core utilities
+            backend/    # Vulkan backend
+            render_graph/ # Render graph system
+            asset/      # Asset loading
+            renderer/   # Main renderer
+            shared/     # Shared utilities
     src/                # C++ implementation
-        core/           # Core utilities
-        backend/        # Vulkan backend
-        render_graph/   # Render graph system
-        assets/         # Asset loading
-        renderer/       # Main renderer
-        app/            # Application layer
+        core/           # Core implementation
+        backend/        # Vulkan backend implementation
+        render_graph/   # Render graph implementation
+        renderer/       # Renderer implementation
+        viewer/         # Viewer application
     shaders/            # HLSL/GLSL shaders
-    tools/              # CLI tools
+    conan/              # Conan profiles and configuration
+        profiles/
     docs/               # Documentation
 ```
 
 ### Translation Status
 This is a work-in-progress translation from Rust to C++. The project follows a detailed translation plan documented in `docs/tekki_translation_plan.md`.
 
-### Current Phase: Infrastructure (M1)
-- CMake + Conan setup
-- Core module skeleton
-- Vulkan backend implementation
+### Current Phase: Renderer Implementation (M2)
+- Core infrastructure complete (M1)
+- Render graph system implemented
+- Renderer modules in progress (IBL, IR cache, lighting, etc.)
+- Viewer application functional
 
 ## Important Commands
 
 ### Build Commands
 ```bash
-# Install dependencies
-conan install . --output-folder=build --build=missing
+# Windows - Debug build (recommended for development)
+Setup.bat
 
-# Configure and build
-cmake -B build -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
-cmake --build build --config Release
+# Windows - Release build
+Setup.bat release
+
+# Manual build with Conan profiles
+conan install . --profile:host conan/profiles/windows-msvc-debug --profile:build conan/profiles/windows-msvc-debug --build=missing --output-folder=build/debug
+cmake --preset conan-default
+cmake --build --preset conan-debug --parallel
 ```
 
 ### Development Commands
 ```bash
-# Debug build with validation
-cmake -B build -DCMAKE_BUILD_TYPE=Debug -DTEKKI_WITH_VALIDATION=ON
+# Debug build with validation (enabled by default)
+Setup.bat
+
+# Run the viewer application
+build\debug\bin\tekki-view.exe
+
+# Clean build
+rmdir /s build
+del CMakeUserPresets.json
 ```
 
 ## Key Technical Decisions
@@ -72,11 +92,11 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug -DTEKKI_WITH_VALIDATION=ON
 
 | Rust Crate | C++ Subsystem | Status |
 |------------|---------------|--------|
-| kajiya | src/renderer/world | � |
-| kajiya-backend | src/backend | � |
-| kajiya-rg | src/render_graph | � |
-| kajiya-asset | src/assets | � |
-| kajiya-simple | src/app/simple_loop | � |
+| kajiya-backend | src/backend | ✅ |
+| kajiya-rg | src/render_graph | ✅ |
+| kajiya-asset | src/asset | ✅ |
+| kajiya | src/renderer | 🚧 |
+| kajiya-simple | src/viewer | ✅ |
 
 ## Development Notes
 

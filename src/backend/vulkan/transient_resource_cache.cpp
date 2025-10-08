@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/transient_resource_cache.rs
 
-#include "backend/vulkan/transient_resource_cache.h"
+#include "../../include/tekki/backend/vulkan/transient_resource_cache.h"
 
 #include <spdlog/spdlog.h>
 

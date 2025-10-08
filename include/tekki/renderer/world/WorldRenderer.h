@@ -91,7 +91,14 @@ struct MeshInstance {
 // Render debug modes
 enum class RenderDebugMode {
     None,
-    WorldRadianceCache
+    WorldRadianceCache,
+    Gbuffer,
+    Lighting,
+    Shadows,
+    Ssgi,
+    Rtr,
+    Rtdgi,
+    Ircache
 };
 
 // Triangle light
@@ -123,8 +130,28 @@ struct DynamicExposureState {
     float ev_fast = 0.0f;
     float ev_slow = 0.0f;
 
-    float ev_smoothed() const;
-    void update(float ev, float dt);
+    float ev_smoothed() const {
+        if (enabled) {
+            return (ev_slow + ev_fast) * 0.5f - 2.0f; // -2.0 bias
+        } else {
+            return 0.0f;
+        }
+    }
+
+    void update(float ev, float dt) {
+        if (!enabled) {
+            return;
+        }
+
+        ev = std::clamp(ev, -16.0f, 16.0f);
+        dt = dt * std::exp2(speed_log2);
+
+        float t_fast = 1.0f - std::exp(-1.0f * dt);
+        ev_fast = (ev - ev_fast) * t_fast + ev_fast;
+
+        float t_slow = 1.0f - std::exp(-0.25f * dt);
+        ev_slow = (ev - ev_slow) * t_slow + ev_slow;
+    }
 };
 
 // Exposure state
@@ -196,6 +223,32 @@ public:
     std::shared_ptr<vulkan::Device> device() const { return device_; }
     RenderMode render_mode() const { return render_mode_; }
     void set_render_mode(RenderMode mode) { render_mode_ = mode; }
+
+    // Debug settings
+    RenderDebugMode debug_mode() const { return debug_mode_; }
+    void set_debug_mode(RenderDebugMode mode) { debug_mode_ = mode; }
+    size_t debug_shading_mode() const { return debug_shading_mode_; }
+    void set_debug_shading_mode(size_t mode) { debug_shading_mode_ = mode; }
+    bool debug_show_wrc() const { return debug_show_wrc_; }
+    void set_debug_show_wrc(bool show) { debug_show_wrc_ = show; }
+
+    // Lighting settings
+    float sun_size_multiplier() const { return sun_size_multiplier_; }
+    void set_sun_size_multiplier(float multiplier) { sun_size_multiplier_ = multiplier; }
+    glm::vec3 sun_color_multiplier() const { return sun_color_multiplier_; }
+    void set_sun_color_multiplier(const glm::vec3& multiplier) { sun_color_multiplier_ = multiplier; }
+    glm::vec3 sky_ambient() const { return sky_ambient_; }
+    void set_sky_ambient(const glm::vec3& ambient) { sky_ambient_ = ambient; }
+
+    // Exposure settings
+    float ev_shift() const { return ev_shift_; }
+    void set_ev_shift(float shift) { ev_shift_ = shift; }
+    float contrast() const { return contrast_; }
+    void set_contrast(float contrast) { contrast_ = contrast; }
+
+    // Frame management
+    void reset_frame_idx() { frame_idx_ = 0; }
+    uint32_t frame_idx() const { return frame_idx_; }
 
 private:
     std::shared_ptr<vulkan::Device> device_;

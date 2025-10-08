@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/image.rs
 
-#include "backend/vulkan/image.h"
+#include "../../include/tekki/backend/vulkan/image.h"
 
 #include <spdlog/spdlog.h>
 

@@ -2,7 +2,7 @@
 // Copyright (c) 2025 tekki Contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#include "core/time.h"
+#include "../../include/tekki/core/time.h"
 
 #include <chrono>
 #include <ctime>
@@ -10,7 +10,7 @@
 #include <sstream>
 #include <utility>
 
-#include "core/log.h"
+#include "../../include/tekki/core/log.h"
 
 namespace tekki::time
 {

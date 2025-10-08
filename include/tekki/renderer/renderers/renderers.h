@@ -2,11 +2,31 @@
 
 #include "../../render_graph/RenderGraph.h"
 #include "../../backend/vulkan/image.h"
+#include "../../backend/vulkan/buffer.h"
+#include "../../../include/tekki/shared/camera.h"
 
 #include <memory>
 #include <optional>
+#include <glm/glm.hpp>
 
 namespace tekki::renderer {
+
+// Import CameraMatrices from shared namespace
+using shared::CameraMatrices;
+
+// Render overrides for debug and testing
+struct RenderOverrides {
+    bool disable_ssgi = false;
+    bool disable_rtr = false;
+    bool disable_rtdgi = false;
+    bool disable_shadows = false;
+    bool disable_taa = false;
+    bool disable_post_processing = false;
+};
+
+// Mesh instance (forward declaration here, defined in WorldRenderer.h)
+struct MeshInstance;
+struct MeshHandle;
 
 // Forward declarations for renderers
 class PostProcessRenderer;
@@ -56,7 +76,28 @@ struct PingPongTemporalResource {
 
 // Image LUT
 struct ImageLut {
-    // TODO: Implement ImageLut structure
+    std::shared_ptr<vulkan::Image> image;
+    bool computed = false;
+
+    ImageLut(std::shared_ptr<vulkan::Image> img) : image(std::move(img)) {}
+
+    void compute_if_needed(render_graph::RenderGraph& rg) {
+        if (computed) {
+            return;
+        }
+
+        // TODO: Implement LUT computation logic
+        // This would involve:
+        // 1. Importing the image into the render graph
+        // 2. Running compute shader to generate LUT data
+        // 3. Exporting the image for shader access
+
+        computed = true;
+    }
+
+    std::shared_ptr<vulkan::Image> backing_image() const {
+        return image;
+    }
 };
 
 } // namespace tekki::renderer

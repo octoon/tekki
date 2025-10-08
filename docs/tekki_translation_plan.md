@@ -141,11 +141,12 @@ tekki/
      - `RenderGraph.h` - 主接口头文件
      - `RenderGraph.cpp` - 基础实现
 
-4. **世界渲染器及渲染 Pass**
-   - 翻译 `WorldRenderer`，拆分 Mesh 管理、实例、光照、LUT、后处理模块。
-   - 渲染 Pass 逐个移植：SSR/RTR、SSGI、RTGI、阴影去噪、TAA、后处理等。
-   - 重新实现绑定表、Bindless Texture 管理、TLAS/BLAS 构建。
-   - UI 渲染、调试模式、Temporal Upsampling 支持。
+4. **世界渲染器及渲染 Pass** ⚠️ **部分完成**
+   - ✅ 翻译 `WorldRenderer`，拆分 Mesh 管理、实例、光照、LUT、后处理模块。
+   - ⚠️ 渲染 Pass 逐个移植：SSR/RTR、SSGI、RTGI、阴影去噪、TAA、后处理等。
+   - ⚠️ 重新实现绑定表、Bindless Texture 管理、TLAS/BLAS 构建。
+   - ⚠️ UI 渲染、调试模式、Temporal Upsampling 支持。
+   - **状态**: 框架结构已完成，具体渲染算法实现中
 
 5. **应用层与工具**
    - `simple_loop`：窗口、输入、主循环；利用 GLFW/Winit 替代方案。
@@ -181,7 +182,7 @@ tekki/
 | M1 基础设施 | CMake 骨架、core 模块、后台空实现编译通过 | 2-3 周 | ✅ **已完成** |
 | M2 Vulkan 后端 | 完成资源管理、命令录制、同步、Shader 编译、GPU Profiler、DLSS | 4-6 周 | ✅ **已完成** |
 | M3 Render Graph | 图构建、资源追踪、Temporal 支持、单元测试 | 3-4 周 | ✅ **已完成** |
-| M4 世界渲染器 | Mesh/实例/TLAS、关键渲染 pass、UI 挂钩 | 6-8 周 | ⏳ 待开始 |
+| M4 世界渲染器 | Mesh/实例/TLAS、关键渲染 pass、UI 挂钩 | 6-8 周 | ⚠️ **部分完成** |
 | M5 工具链 | Viewer、Asset Baker、Hello Demo | 3-4 周 | ⏳ 待开始 |
 | M6 着色器与回归 | 着色器迁移、自动化测试、性能调优 | 4-6 周 | ⏳ 待开始 |
 

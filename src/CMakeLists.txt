@@ -1,18 +1,14 @@
 # Core library - fundamental utilities and types
 add_library(tekki-core STATIC
     core/log.cpp
-    core/log.h
-    core/error.hpp
-    core/common.hpp
     core/time.cpp
-    core/time.h
     core/config.cpp
-    core/config.h
 )
 
 target_include_directories(tekki-core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-core
@@ -37,6 +33,7 @@ add_library(tekki-backend INTERFACE)
 target_include_directories(tekki-backend
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-backend
@@ -55,6 +52,7 @@ add_library(tekki-rg INTERFACE)
 target_include_directories(tekki-rg
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-rg
@@ -68,6 +66,7 @@ add_library(tekki-asset INTERFACE)
 target_include_directories(tekki-asset
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-asset
@@ -87,6 +86,7 @@ add_library(tekki-renderer INTERFACE)
 target_include_directories(tekki-renderer
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-renderer

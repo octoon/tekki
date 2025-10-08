@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/dynamic_constants.rs
 
-#include "backend/vulkan/dynamic_constants.h"
+#include "../../include/tekki/backend/vulkan/dynamic_constants.h"
 
 #include <spdlog/spdlog.h>
 

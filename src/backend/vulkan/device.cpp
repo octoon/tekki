@@ -4,13 +4,13 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/device.rs
 
-#include "backend/vulkan/device.h"
+#include "../../include/tekki/backend/vulkan/device.h"
 
 #include <set>
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan.hpp>
 
-#include "backend/vulkan/allocator.h"
+#include "../../include/tekki/backend/vulkan/allocator.h"
 
 namespace tekki::backend::vulkan
 {

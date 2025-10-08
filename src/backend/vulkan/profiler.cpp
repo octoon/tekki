@@ -4,12 +4,12 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/profiler.rs
 
-#include "backend/vulkan/profiler.h"
+#include "../../include/tekki/backend/vulkan/profiler.h"
 
 #include <spdlog/spdlog.h>
 
-#include "backend/vulkan/allocator.h"
-#include "backend/vulkan/device.h"
+#include "../../include/tekki/backend/vulkan/allocator.h"
+#include "../../include/tekki/backend/vulkan/device.h"
 
 namespace tekki::backend::vulkan
 {

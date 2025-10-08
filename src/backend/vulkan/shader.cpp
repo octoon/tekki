@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/shader.rs
 
-#include "backend/vulkan/shader.h"
+#include "../../include/tekki/backend/vulkan/shader.h"
 
 #include <fstream>
 #include <spdlog/spdlog.h>

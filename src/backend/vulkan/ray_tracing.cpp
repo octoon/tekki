@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/ray_tracing.rs
 
-#include "backend/vulkan/ray_tracing.h"
+#include "../../include/tekki/backend/vulkan/ray_tracing.h"
 
 #include <spdlog/spdlog.h>
 

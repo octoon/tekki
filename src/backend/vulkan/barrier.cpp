@@ -4,7 +4,7 @@
 
 // Original Rust: kajiya/crates/lib/kajiya-backend/src/vulkan/barrier.rs
 
-#include "backend/vulkan/barrier.h"
+#include "../../include/tekki/backend/vulkan/barrier.h"
 
 #include <spdlog/spdlog.h>
 
