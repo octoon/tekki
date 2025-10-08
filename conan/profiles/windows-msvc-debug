@@ -3,10 +3,11 @@ os=Windows
 arch=x86_64
 compiler=msvc
 compiler.version=193
+compiler.cppstd=20
 compiler.runtime=static
 build_type=Debug
 
 [conf]
-tools.cmake.cmaketoolchain:generator=Ninja Multi-Config
+tools.cmake.cmaketoolchain:generator=Visual Studio 17 2022
 
 [options]

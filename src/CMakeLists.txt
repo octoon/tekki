@@ -12,7 +12,7 @@ add_library(tekki-core STATIC
 
 target_include_directories(tekki-core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(tekki-core
@@ -25,52 +25,46 @@ target_link_libraries(tekki-core
 )
 
 # Backend library - Vulkan wrapper and GPU management
-add_library(tekki-backend STATIC
-    # Will be populated during translation
-)
+add_library(tekki-backend INTERFACE)
 
 target_include_directories(tekki-backend
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(tekki-backend
-    PUBLIC
+    INTERFACE
         tekki-core
         Vulkan::Vulkan
-        GPUOpen::VulkanMemoryAllocator
+        vulkan-memory-allocator::vulkan-memory-allocator
         spirv-cross-core
-        SPIRV-Tools
+        SPIRV-Tools-static
         efsw::efsw
 )
 
 # Render graph library
-add_library(tekki-rg STATIC
-    # Will be populated during translation
-)
+add_library(tekki-rg INTERFACE)
 
 target_include_directories(tekki-rg
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(tekki-rg
-    PUBLIC
+    INTERFACE
         tekki-backend
 )
 
 # Asset library - loading and processing
-add_library(tekki-asset STATIC
-    # Will be populated during translation
-)
+add_library(tekki-asset INTERFACE)
 
 target_include_directories(tekki-asset
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(tekki-asset
-    PUBLIC
+    INTERFACE
         tekki-core
         OpenEXR::OpenEXR
         nlohmann_json::nlohmann_json
@@ -81,17 +75,15 @@ target_link_libraries(tekki-asset
 )
 
 # Renderer library - main rendering implementation
-add_library(tekki-renderer STATIC
-    # Will be populated during translation
-)
+add_library(tekki-renderer INTERFACE)
 
 target_include_directories(tekki-renderer
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(tekki-renderer
-    PUBLIC
+    INTERFACE
         tekki-backend
         tekki-rg
         tekki-asset

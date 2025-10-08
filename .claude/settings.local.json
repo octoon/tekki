@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(conan install . --output-folder=build/debug --build=missing --profile=conan/profiles/windows-msvc-debug)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

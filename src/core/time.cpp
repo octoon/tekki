@@ -17,8 +17,19 @@ namespace tekki::time {
 using namespace std::chrono;
 
 static std::string format_with_ms(const Clock::time_point& tp) {
-    const auto time = Clock::to_time_t(tp);
-    const auto tm = *std::localtime(&time);
+    // Convert steady_clock to system_clock for formatting
+    const auto now_steady = Clock::now();
+    const auto now_system = system_clock::now();
+    const auto diff = duration_cast<system_clock::duration>(tp - now_steady);
+    const auto system_tp = time_point_cast<system_clock::duration>(now_system + diff);
+
+    const auto time = system_clock::to_time_t(system_tp);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &time);
+#else
+    localtime_r(&time, &tm);
+#endif
     std::ostringstream oss;
     oss << std::put_time(&tm, "%H:%M:%S");
     const auto remainder = duration_cast<milliseconds>(tp.time_since_epoch()) % 1000;

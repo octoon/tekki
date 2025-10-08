@@ -2,12 +2,14 @@
 set -euo pipefail
 
 PROFILE="conan/profiles/linux-gcc-debug"
-CONFIG_PRESET="conan-debug"
+CONFIGURE_PRESET="conan-default"
+BUILD_PRESET="conan-debug"
 BUILD_DIR="build/debug"
 
 if [[ "${1:-}" == "release" ]]; then
   PROFILE="conan/profiles/linux-gcc-release"
-  CONFIG_PRESET="conan-release"
+  CONFIGURE_PRESET="conan-default"
+  BUILD_PRESET="conan-release"
   BUILD_DIR="build/release"
 fi
 
@@ -25,5 +27,5 @@ conan install . \
   --build=missing \
   --output-folder="$BUILD_DIR"
 
-cmake --preset "$CONFIG_PRESET"
-cmake --build --preset "$CONFIG_PRESET" --parallel
+cmake --preset "$CONFIGURE_PRESET"
+cmake --build --preset "$BUILD_PRESET" --parallel

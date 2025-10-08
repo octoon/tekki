@@ -2,12 +2,14 @@
 setlocal enabledelayedexpansion
 
 set PROFILE=conan\profiles\windows-msvc-debug
-set PRESET=conan-debug
+set CONFIGURE_PRESET=conan-default
+set BUILD_PRESET=conan-debug
 set BUILD_DIR=build\debug
 
 if "%1"=="release" (
     set PROFILE=conan\profiles\windows-msvc-release
-    set PRESET=conan-release
+    set CONFIGURE_PRESET=conan-default
+    set BUILD_PRESET=conan-release
     set BUILD_DIR=build\release
 )
 
@@ -23,7 +25,7 @@ conan install . ^
     --build=missing ^
     --output-folder=!BUILD_DIR!
 
-cmake --preset !PRESET!
-cmake --build --preset !PRESET! --parallel
+cmake --preset !CONFIGURE_PRESET!
+cmake --build --preset !BUILD_PRESET! --parallel
 
 endlocal
