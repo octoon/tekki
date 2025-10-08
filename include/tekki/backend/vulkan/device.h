@@ -6,55 +6,57 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-#include <memory>
-#include <unordered_map>
 #include <array>
+#include <memory>
 #include <mutex>
+#include <unordered_map>
+#include <vulkan/vulkan.hpp>
 
-#include "core/common.h"
 #include "buffer.h"
-#include "profiler.h"
+#include "core/common.h"
 #include "dlss.h"
+#include "profiler.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
 class PhysicalDevice;
 class Instance;
 
-struct Queue {
+struct Queue
+{
     vk::Queue raw;
     class QueueFamily family;
 };
 
-struct SamplerDesc {
+struct SamplerDesc
+{
     vk::Filter texel_filter;
     vk::SamplerMipmapMode mipmap_mode;
     vk::SamplerAddressMode address_modes;
 
-    bool operator==(const SamplerDesc& other) const {
-        return texel_filter == other.texel_filter &&
-               mipmap_mode == other.mipmap_mode &&
+    bool operator==(const SamplerDesc& other) const
+    {
+        return texel_filter == other.texel_filter && mipmap_mode == other.mipmap_mode &&
                address_modes == other.address_modes;
     }
 };
 
-struct SamplerDescHash {
-    std::size_t operator()(const SamplerDesc& desc) const {
+struct SamplerDescHash
+{
+    std::size_t operator()(const SamplerDesc& desc) const
+    {
         return std::hash<int>{}(static_cast<int>(desc.texel_filter)) ^
                std::hash<int>{}(static_cast<int>(desc.mipmap_mode)) ^
                std::hash<int>{}(static_cast<int>(desc.address_modes));
     }
 };
 
-class DeviceFrame {
+class DeviceFrame
+{
 public:
-    DeviceFrame(
-        const std::shared_ptr<PhysicalDevice>& pdevice,
-        vk::Device device,
-        class VulkanAllocator& allocator,
-        const class QueueFamily& queue_family
-    );
+    DeviceFrame(const std::shared_ptr<PhysicalDevice>& pdevice, vk::Device device, class VulkanAllocator& allocator,
+                const class QueueFamily& queue_family);
 
     ~DeviceFrame();
 
@@ -65,7 +67,8 @@ public:
 
     // Resource release tracking
     std::mutex pending_resource_releases_mutex;
-    struct PendingResourceReleases {
+    struct PendingResourceReleases
+    {
         std::vector<vk::DescriptorPool> descriptor_pools;
 
         void release_all(vk::Device device);
@@ -75,7 +78,8 @@ public:
     std::unique_ptr<GpuProfiler> profiler;
 };
 
-class CommandBuffer {
+class CommandBuffer
+{
 public:
     CommandBuffer(vk::Device device, const class QueueFamily& queue_family);
     ~CommandBuffer();
@@ -89,7 +93,8 @@ private:
     vk::Fence submit_done_fence_;
 };
 
-class Device : public std::enable_shared_from_this<Device> {
+class Device : public std::enable_shared_from_this<Device>
+{
 public:
     static std::shared_ptr<Device> create(const std::shared_ptr<PhysicalDevice>& pdevice);
 
@@ -101,11 +106,8 @@ public:
     const std::shared_ptr<PhysicalDevice>& physical_device() const { return pdevice_; }
 
     // Resource management
-    std::shared_ptr<Buffer> create_buffer(
-        const BufferDesc& desc,
-        const std::string& name,
-        const std::vector<uint8_t>* initial_data = nullptr
-    );
+    std::shared_ptr<Buffer> create_buffer(const BufferDesc& desc, const std::string& name,
+                                          const std::vector<uint8_t>* initial_data = nullptr);
 
     void immediate_destroy_buffer(const std::shared_ptr<Buffer>& buffer);
 
@@ -127,24 +129,17 @@ public:
     std::shared_ptr<GpuProfiler> gpu_profiler() const { return gpu_profiler_; }
 
     // DLSS
-    std::shared_ptr<DlssRenderer> create_dlss_renderer(
-        const glm::uvec2& input_resolution,
-        const glm::uvec2& target_resolution
-    );
+    std::shared_ptr<DlssRenderer> create_dlss_renderer(const glm::uvec2& input_resolution,
+                                                       const glm::uvec2& target_resolution);
     bool dlss_available() const { return dlss_available_; }
 
 private:
     Device() = default;
 
-    static std::unordered_map<SamplerDesc, vk::Sampler, SamplerDescHash>
-    create_samplers(vk::Device device);
+    static std::unordered_map<SamplerDesc, vk::Sampler, SamplerDescHash> create_samplers(vk::Device device);
 
-    static std::shared_ptr<Buffer> create_buffer_impl(
-        vk::Device device,
-        class VulkanAllocator& allocator,
-        const BufferDesc& desc,
-        const std::string& name
-    );
+    static std::shared_ptr<Buffer> create_buffer_impl(vk::Device device, class VulkanAllocator& allocator,
+                                                      const BufferDesc& desc, const std::string& name);
 
     std::shared_ptr<PhysicalDevice> pdevice_;
     std::shared_ptr<Instance> instance_;

@@ -5,13 +5,14 @@
 #pragma once
 
 #include <filesystem>
+#include <spdlog/common.h>
 #include <string>
 
-#include <spdlog/common.h>
+namespace tekki::config
+{
 
-namespace tekki::config {
-
-struct AppConfig {
+struct AppConfig
+{
     int window_width = 1280;
     int window_height = 720;
     std::string window_title = "tekki viewer";

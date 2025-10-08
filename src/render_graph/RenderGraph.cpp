@@ -1,11 +1,13 @@
 #include "RenderGraph.h"
 
-namespace tekki::render_graph {
+namespace tekki::render_graph
+{
 
 // Basic implementations for key types
 
 // RenderGraph implementation
-RenderGraph::RenderGraph() {
+RenderGraph::RenderGraph()
+{
     // Initialize with empty vectors
     passes = {};
     resources = {};
@@ -19,20 +21,23 @@ RenderGraph::RenderGraph() {
 }
 
 // PassBuilder implementation
-PassBuilder::PassBuilder(RenderGraph* rg, size_t pass_idx)
-    : rg(rg), pass_idx(pass_idx) {
-    pass = RecordedPass::new("", pass_idx);
+PassBuilder::PassBuilder(RenderGraph* rg, size_t pass_idx) : rg(rg), pass_idx(pass_idx)
+{
+    pass = RecordedPass::new ("", pass_idx);
 }
 
-PassBuilder::~PassBuilder() {
-    if (pass) {
+PassBuilder::~PassBuilder()
+{
+    if (pass)
+    {
         rg->record_pass(*pass);
     }
 }
 
 // TemporalRenderGraph implementation
 TemporalRenderGraph::TemporalRenderGraph(TemporalRenderGraphState state, std::shared_ptr<Device> device)
-    : device_(device), temporal_state(state) {
+    : device_(device), temporal_state(state)
+{
     rg = RenderGraph();
 }
 

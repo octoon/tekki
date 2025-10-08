@@ -6,15 +6,17 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <memory>
 #include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
-struct AccelerationStructureBuildInfo {
+struct AccelerationStructureBuildInfo
+{
     vk::AccelerationStructureTypeKHR type;
     vk::BuildAccelerationStructureFlagsKHR flags;
     vk::BuildAccelerationStructureModeKHR mode;
@@ -22,14 +24,11 @@ struct AccelerationStructureBuildInfo {
     std::vector<vk::AccelerationStructureBuildRangeInfoKHR> range_infos;
 };
 
-class AccelerationStructure {
+class AccelerationStructure
+{
 public:
-    AccelerationStructure(
-        vk::Device device,
-        vk::AccelerationStructureKHR as,
-        vk::Buffer buffer,
-        vk::DeviceAddress device_address
-    );
+    AccelerationStructure(vk::Device device, vk::AccelerationStructureKHR as, vk::Buffer buffer,
+                          vk::DeviceAddress device_address);
     ~AccelerationStructure();
 
     vk::AccelerationStructureKHR raw() const { return acceleration_structure_; }
@@ -42,9 +41,11 @@ private:
     vk::DeviceAddress device_address_;
 };
 
-class RayTracingPipeline {
+class RayTracingPipeline
+{
 public:
-    struct ShaderGroup {
+    struct ShaderGroup
+    {
         vk::RayTracingShaderGroupTypeKHR type;
         uint32_t general_shader;
         uint32_t closest_hit_shader;
@@ -52,12 +53,8 @@ public:
         uint32_t intersection_shader;
     };
 
-    RayTracingPipeline(
-        vk::Device device,
-        vk::Pipeline pipeline,
-        vk::PipelineLayout layout,
-        const std::vector<ShaderGroup>& shader_groups
-    );
+    RayTracingPipeline(vk::Device device, vk::Pipeline pipeline, vk::PipelineLayout layout,
+                       const std::vector<ShaderGroup>& shader_groups);
     ~RayTracingPipeline();
 
     vk::Pipeline raw() const { return pipeline_; }
@@ -65,10 +62,8 @@ public:
     const std::vector<ShaderGroup>& shader_groups() const { return shader_groups_; }
 
     // SBT (Shader Binding Table) creation
-    std::shared_ptr<class Buffer> create_shader_binding_table(
-        vk::Device device,
-        const class Device& backend_device
-    ) const;
+    std::shared_ptr<class Buffer> create_shader_binding_table(vk::Device device,
+                                                              const class Device& backend_device) const;
 
 private:
     vk::Device device_;
@@ -77,24 +72,18 @@ private:
     std::vector<ShaderGroup> shader_groups_;
 };
 
-class RayTracingBuilder {
+class RayTracingBuilder
+{
 public:
-    static std::shared_ptr<AccelerationStructure> build_blas(
-        const class Device& device,
-        const AccelerationStructureBuildInfo& build_info
-    );
+    static std::shared_ptr<AccelerationStructure> build_blas(const class Device& device,
+                                                             const AccelerationStructureBuildInfo& build_info);
 
-    static std::shared_ptr<AccelerationStructure> build_tlas(
-        const class Device& device,
-        const AccelerationStructureBuildInfo& build_info
-    );
+    static std::shared_ptr<AccelerationStructure> build_tlas(const class Device& device,
+                                                             const AccelerationStructureBuildInfo& build_info);
 
-    static std::shared_ptr<RayTracingPipeline> create_pipeline(
-        const class Device& device,
-        const std::vector<vk::PipelineShaderStageCreateInfo>& stages,
-        const std::vector<RayTracingPipeline::ShaderGroup>& groups,
-        vk::PipelineLayout layout
-    );
+    static std::shared_ptr<RayTracingPipeline>
+    create_pipeline(const class Device& device, const std::vector<vk::PipelineShaderStageCreateInfo>& stages,
+                    const std::vector<RayTracingPipeline::ShaderGroup>& groups, vk::PipelineLayout layout);
 };
 
 } // namespace tekki::backend::vulkan

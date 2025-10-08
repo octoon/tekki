@@ -8,7 +8,8 @@
 
 #include "core/common.hpp"
 
-namespace tekki::renderer {
+namespace tekki::renderer
+{
 
 /**
  * @brief Main renderer implementation for tekki

@@ -8,7 +8,8 @@
 
 #include "core/common.hpp"
 
-namespace tekki::backend {
+namespace tekki::backend
+{
 
 /**
  * @brief Vulkan backend for tekki renderer

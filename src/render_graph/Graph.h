@@ -1,31 +1,35 @@
 #pragma once
 
-#include "Resource.h"
-#include "ResourceRegistry.h"
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "../backend/vulkan/device.h"
+#include "../backend/vulkan/dynamic_constants.h"
 #include "../backend/vulkan/shader.h"
 #include "../backend/vulkan/transient_resource_cache.h"
-#include "../backend/vulkan/dynamic_constants.h"
+#include "Resource.h"
+#include "ResourceRegistry.h"
 
-#include <memory>
-#include <vector>
-#include <unordered_map>
-#include <string>
-
-namespace tekki::render_graph {
+namespace tekki::render_graph
+{
 
 // Forward declarations
 class PassBuilder;
 struct RecordedPass;
 
 // Resource creation info
-struct GraphResourceCreateInfo {
+struct GraphResourceCreateInfo
+{
     GraphResourceDesc desc;
 };
 
 // Resource import info
-struct GraphResourceImportInfo {
-    enum class Type {
+struct GraphResourceImportInfo
+{
+    enum class Type
+    {
         Image,
         Buffer,
         RayTracingAcceleration,
@@ -33,17 +37,15 @@ struct GraphResourceImportInfo {
     };
 
     Type type;
-    std::variant<
-        std::shared_ptr<Image>,
-        std::shared_ptr<Buffer>,
-        std::shared_ptr<RayTracingAcceleration>
-    > resource;
+    std::variant<std::shared_ptr<Image>, std::shared_ptr<Buffer>, std::shared_ptr<RayTracingAcceleration>> resource;
     vk_sync::AccessType access_type;
 };
 
 // Resource info
-struct GraphResourceInfo {
-    enum class Type {
+struct GraphResourceInfo
+{
+    enum class Type
+    {
         Created,
         Imported
     };
@@ -53,8 +55,10 @@ struct GraphResourceInfo {
 };
 
 // Exportable resource
-struct ExportableGraphResource {
-    enum class Type {
+struct ExportableGraphResource
+{
+    enum class Type
+    {
         Image,
         Buffer
     };
@@ -62,74 +66,83 @@ struct ExportableGraphResource {
     Type type;
     std::variant<Handle<ImageResource>, Handle<BufferResource>> data;
 
-    GraphRawResourceHandle raw() const {
-        switch (type) {
-            case Type::Image:
-                return std::get<Handle<ImageResource>>(data).raw;
-            case Type::Buffer:
-                return std::get<Handle<BufferResource>>(data).raw;
+    GraphRawResourceHandle raw() const
+    {
+        switch (type)
+        {
+        case Type::Image:
+            return std::get<Handle<ImageResource>>(data).raw;
+        case Type::Buffer:
+            return std::get<Handle<BufferResource>>(data).raw;
         }
     }
 };
 
 // Pipeline handles
-struct RgComputePipelineHandle {
+struct RgComputePipelineHandle
+{
     size_t id;
 };
 
-struct RgComputePipeline {
+struct RgComputePipeline
+{
     ComputePipelineDesc desc;
 };
 
-struct RgRasterPipelineHandle {
+struct RgRasterPipelineHandle
+{
     size_t id;
 };
 
-struct RgRasterPipeline {
+struct RgRasterPipeline
+{
     std::vector<PipelineShaderDesc> shaders;
     RasterPipelineDesc desc;
 };
 
-struct RgRtPipelineHandle {
+struct RgRtPipelineHandle
+{
     size_t id;
 };
 
-struct RgRtPipeline {
+struct RgRtPipeline
+{
     std::vector<PipelineShaderDesc> shaders;
     RayTracingPipelineDesc desc;
 };
 
 // Predefined descriptor set
-struct PredefinedDescriptorSet {
+struct PredefinedDescriptorSet
+{
     std::unordered_map<uint32_t, rspirv_reflect::DescriptorInfo> bindings;
 };
 
 // Debug hooks
-struct RenderDebugHook {
+struct RenderDebugHook
+{
     std::string name;
     uint64_t id;
 };
 
-struct GraphDebugHook {
+struct GraphDebugHook
+{
     RenderDebugHook render_debug_hook;
 };
 
 // Main render graph class
-class RenderGraph {
+class RenderGraph
+{
 public:
     RenderGraph();
     ~RenderGraph() = default;
 
     // Resource creation
-    template<typename Desc>
-    Handle<typename ResourceDescTraits<Desc>::ResourceType> create(const Desc& desc);
+    template <typename Desc> Handle<typename ResourceDescTraits<Desc>::ResourceType> create(const Desc& desc);
 
     // Resource import/export
-    template<typename Res>
-    Handle<Res> import(std::shared_ptr<Res> resource, vk_sync::AccessType access_type);
+    template <typename Res> Handle<Res> import(std::shared_ptr<Res> resource, vk_sync::AccessType access_type);
 
-    template<typename Res>
-    ExportedHandle<Res> export(Handle<Res> resource, vk_sync::AccessType access_type);
+    template <typename Res> ExportedHandle<Res> export(Handle<Res> resource, vk_sync::AccessType access_type);
 
     // Pass management
     PassBuilder add_pass(const std::string& name);
@@ -160,22 +173,23 @@ private:
 };
 
 // Import/export trait
-template<typename Res>
-class ImportExportToRenderGraph {
+template <typename Res> class ImportExportToRenderGraph
+{
 public:
     static Handle<Res> import(std::shared_ptr<Res> self, RenderGraph& rg, vk_sync::AccessType access_type);
     static ExportedHandle<Res> export(Handle<Res> resource, RenderGraph& rg, vk_sync::AccessType access_type);
 };
 
 // Type equality trait
-template<typename T>
-struct TypeEquals {
+template <typename T> struct TypeEquals
+{
     using Other = T;
     static Other same(T value) { return value; }
 };
 
 // Execution parameters
-struct RenderGraphExecutionParams {
+struct RenderGraphExecutionParams
+{
     Device* device;
     PipelineCache* pipeline_cache;
     vk::DescriptorSet frame_descriptor_set;
@@ -184,28 +198,29 @@ struct RenderGraphExecutionParams {
 };
 
 // Pipeline collections
-struct RenderGraphPipelines {
+struct RenderGraphPipelines
+{
     std::vector<ComputePipelineHandle> compute;
     std::vector<RasterPipelineHandle> raster;
     std::vector<RtPipelineHandle> rt;
 };
 
 // Compiled render graph
-class CompiledRenderGraph {
+class CompiledRenderGraph
+{
 public:
     RenderGraph rg;
     ResourceInfo resource_info;
     RenderGraphPipelines pipelines;
 
-    ExecutingRenderGraph begin_execute(
-        const RenderGraphExecutionParams& params,
-        TransientResourceCache& transient_resource_cache,
-        DynamicConstants& dynamic_constants
-    );
+    ExecutingRenderGraph begin_execute(const RenderGraphExecutionParams& params,
+                                       TransientResourceCache& transient_resource_cache,
+                                       DynamicConstants& dynamic_constants);
 };
 
 // Executing render graph
-class ExecutingRenderGraph {
+class ExecutingRenderGraph
+{
 public:
     void record_main_cb(CommandBuffer* cb);
     RetiredRenderGraph record_presentation_cb(CommandBuffer* cb, std::shared_ptr<Image> swapchain_image);
@@ -217,21 +232,15 @@ private:
     ResourceRegistry resource_registry;
 
     static void record_pass_cb(RecordedPass pass, ResourceRegistry* resource_registry, CommandBuffer* cb);
-    static void transition_resource(
-        Device* device,
-        CommandBuffer* cb,
-        RegistryResource* resource,
-        PassResourceAccessType access,
-        bool debug,
-        const std::string& dbg_str
-    );
+    static void transition_resource(Device* device, CommandBuffer* cb, RegistryResource* resource,
+                                    PassResourceAccessType access, bool debug, const std::string& dbg_str);
 };
 
 // Retired render graph
-class RetiredRenderGraph {
+class RetiredRenderGraph
+{
 public:
-    template<typename Res>
-    std::pair<const Res*, vk_sync::AccessType> exported_resource(ExportedHandle<Res> handle);
+    template <typename Res> std::pair<const Res*, vk_sync::AccessType> exported_resource(ExportedHandle<Res> handle);
 
     void release_resources(TransientResourceCache& transient_resource_cache);
 
@@ -240,42 +249,42 @@ private:
 };
 
 // Pass resource access types
-enum class PassResourceAccessSyncType {
+enum class PassResourceAccessSyncType
+{
     AlwaysSync,
     SkipSyncIfSameAccessType
 };
 
-struct PassResourceAccessType {
+struct PassResourceAccessType
+{
     vk_sync::AccessType access_type;
     PassResourceAccessSyncType sync_type;
 
-    static PassResourceAccessType new(vk_sync::AccessType access_type, PassResourceAccessSyncType sync_type) {
+    static PassResourceAccessType new(vk_sync::AccessType access_type, PassResourceAccessSyncType sync_type)
+    {
         return {access_type, sync_type};
     }
 };
 
 // Pass resource reference
-struct PassResourceRef {
+struct PassResourceRef
+{
     GraphRawResourceHandle handle;
     PassResourceAccessType access;
 };
 
 // Recorded pass
-struct RecordedPass {
+struct RecordedPass
+{
     std::vector<PassResourceRef> read;
     std::vector<PassResourceRef> write;
     std::function<void(RenderPassApi*)> render_fn;
     std::string name;
     size_t idx;
 
-    static RecordedPass new(const std::string& name, size_t idx) {
-        return {
-            .read = {},
-            .write = {},
-            .render_fn = {},
-            .name = name,
-            .idx = idx
-        };
+    static RecordedPass new(const std::string& name, size_t idx)
+    {
+        return {.read = {}, .write = {}, .render_fn = {}, .name = name, .idx = idx};
     }
 };
 

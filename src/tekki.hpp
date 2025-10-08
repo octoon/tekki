@@ -11,7 +11,8 @@
 #include "core/error.hpp"
 #include "core/log.hpp"
 
-namespace tekki {
+namespace tekki
+{
 
 /**
  * @brief Main tekki namespace

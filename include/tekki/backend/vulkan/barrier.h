@@ -10,10 +10,12 @@
 
 #include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
 // Access types from vk_sync (simplified)
-enum class AccessType {
+enum class AccessType
+{
     Nothing,
     IndirectBuffer,
     IndexBuffer,
@@ -49,20 +51,17 @@ enum class AccessType {
     General
 };
 
-struct AccessInfo {
+struct AccessInfo
+{
     vk::PipelineStageFlags stage_mask;
     vk::AccessFlags access_mask;
     vk::ImageLayout image_layout;
 };
 
-class ImageBarrier {
+class ImageBarrier
+{
 public:
-    ImageBarrier(
-        vk::Image image,
-        AccessType prev_access,
-        AccessType next_access,
-        vk::ImageAspectFlags aspect_mask
-    );
+    ImageBarrier(vk::Image image, AccessType prev_access, AccessType next_access, vk::ImageAspectFlags aspect_mask);
 
     ImageBarrier& with_discard(bool discard);
 
@@ -79,9 +78,7 @@ private:
 // Utility functions
 AccessInfo get_access_info(AccessType access_type);
 vk::ImageAspectFlags image_aspect_mask_from_format(vk::Format format);
-std::optional<vk::ImageAspectFlags> image_aspect_mask_from_access_type_and_format(
-    AccessType access_type,
-    vk::Format format
-);
+std::optional<vk::ImageAspectFlags> image_aspect_mask_from_access_type_and_format(AccessType access_type,
+                                                                                  vk::Format format);
 
 } // namespace tekki::backend::vulkan

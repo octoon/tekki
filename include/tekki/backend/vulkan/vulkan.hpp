@@ -6,32 +6,33 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <memory>
 #include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "core/common.hpp"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
 /**
  * @brief Main Vulkan backend interface
  *
  * Translates from Rust's RenderBackend struct
  */
-class RenderBackend {
+class RenderBackend
+{
 public:
-    struct Config {
+    struct Config
+    {
         std::array<uint32_t, 2> swapchain_extent;
         bool vsync;
         bool graphics_debugging;
         std::optional<size_t> device_index;
     };
 
-    static std::unique_ptr<RenderBackend> create(
-        void* window, // Platform-specific window handle
-        const Config& config
-    );
+    static std::unique_ptr<RenderBackend> create(void* window, // Platform-specific window handle
+                                                 const Config& config);
 
     ~RenderBackend();
 

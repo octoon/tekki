@@ -9,18 +9,18 @@
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include <vulkan/vulkan.h>
-
 #include <cstdlib>
 #include <exception>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <vulkan/vulkan.h>
 
-namespace {
+namespace
+{
 
-VkInstance create_vulkan_instance(bool enable_validation,
-                                  const std::vector<const char*>& extensions) {
+VkInstance create_vulkan_instance(bool enable_validation, const std::vector<const char*>& extensions)
+{
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = "tekki-view";
@@ -35,18 +35,18 @@ VkInstance create_vulkan_instance(bool enable_validation,
     create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.data();
 
-    const std::vector<const char*> validation_layers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
+    const std::vector<const char*> validation_layers = {"VK_LAYER_KHRONOS_validation"};
 
-    if (enable_validation) {
+    if (enable_validation)
+    {
         create_info.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
         create_info.ppEnabledLayerNames = validation_layers.data();
     }
 
     VkInstance instance = VK_NULL_HANDLE;
     const auto result = vkCreateInstance(&create_info, nullptr, &instance);
-    if (result != VK_SUCCESS) {
+    if (result != VK_SUCCESS)
+    {
         throw std::runtime_error("Failed to create Vulkan instance");
     }
 
@@ -55,7 +55,8 @@ VkInstance create_vulkan_instance(bool enable_validation,
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     TEKKI_UNUSED(argc);
     TEKKI_UNUSED(argv);
 
@@ -64,7 +65,8 @@ int main(int argc, char** argv) {
     tekki::log::init(config.log_level);
     TEKKI_LOG_INFO("tekki viewer starting - window {}x{}", config.window_width, config.window_height);
 
-    if (!glfwInit()) {
+    if (!glfwInit())
+    {
         TEKKI_LOG_CRITICAL("Failed to initialize GLFW");
         return EXIT_FAILURE;
     }
@@ -72,21 +74,18 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    GLFWwindow* window = glfwCreateWindow(
-        config.window_width,
-        config.window_height,
-        config.window_title.c_str(),
-        nullptr,
-        nullptr
-    );
+    GLFWwindow* window =
+        glfwCreateWindow(config.window_width, config.window_height, config.window_title.c_str(), nullptr, nullptr);
 
-    if (!window) {
+    if (!window)
+    {
         TEKKI_LOG_CRITICAL("Failed to create GLFW window");
         glfwTerminate();
         return EXIT_FAILURE;
     }
 
-    if (!glfwVulkanSupported()) {
+    if (!glfwVulkanSupported())
+    {
         TEKKI_LOG_CRITICAL("GLFW reports Vulkan unsupported on this platform");
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -95,7 +94,8 @@ int main(int argc, char** argv) {
 
     uint32_t extension_count = 0;
     const char** required_extensions = glfwGetRequiredInstanceExtensions(&extension_count);
-    if (!required_extensions || extension_count == 0) {
+    if (!required_extensions || extension_count == 0)
+    {
         TEKKI_LOG_CRITICAL("Failed to query required Vulkan extensions from GLFW");
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -105,10 +105,13 @@ int main(int argc, char** argv) {
     std::vector<const char*> extensions(required_extensions, required_extensions + extension_count);
 
     VkInstance instance = VK_NULL_HANDLE;
-    try {
+    try
+    {
         instance = create_vulkan_instance(config.enable_validation, extensions);
         TEKKI_LOG_INFO("Vulkan instance created with {} extensions", extension_count);
-    } catch (const std::exception& err) {
+    }
+    catch (const std::exception& err)
+    {
         TEKKI_LOG_CRITICAL("{}", err.what());
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -119,19 +122,23 @@ int main(int argc, char** argv) {
     bool running = true;
     unsigned frame_count = 0;
 
-    while (running) {
+    while (running)
+    {
         glfwPollEvents();
 
-        if (glfwWindowShouldClose(window)) {
+        if (glfwWindowShouldClose(window))
+        {
             running = false;
         }
 
         const double dt = frame_timer.tick();
-        if (frame_count % 60 == 0) {
+        if (frame_count % 60 == 0)
+        {
             TEKKI_LOG_INFO("Frame {} | dt = {:.2f} ms", frame_count, dt * 1000.0);
         }
 
-        if (config.bootstrap_frames > 0 && frame_count >= config.bootstrap_frames) {
+        if (config.bootstrap_frames > 0 && frame_count >= config.bootstrap_frames)
+        {
             TEKKI_LOG_INFO("Bootstrap frame limit {} reached, exiting", config.bootstrap_frames);
             running = false;
         }

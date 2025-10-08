@@ -6,16 +6,18 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
-class InstanceBuilder {
+class InstanceBuilder
+{
 public:
     InstanceBuilder();
 
@@ -29,7 +31,8 @@ private:
     bool graphics_debugging_{false};
 };
 
-class Instance {
+class Instance
+{
 public:
     static InstanceBuilder builder();
 
@@ -58,15 +61,8 @@ private:
 };
 
 // Debug callback function
-VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(
-    VkDebugReportFlagsEXT flags,
-    VkDebugReportObjectTypeEXT obj_type,
-    uint64_t src_obj,
-    size_t location,
-    int32_t msg_code,
-    const char* layer_prefix,
-    const char* message,
-    void* user_data
-);
+VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT obj_type,
+                                                     uint64_t src_obj, size_t location, int32_t msg_code,
+                                                     const char* layer_prefix, const char* message, void* user_data);
 
 } // namespace tekki::backend::vulkan

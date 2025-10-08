@@ -8,7 +8,8 @@
 
 #include "core/common.hpp"
 
-namespace tekki::asset {
+namespace tekki::asset
+{
 
 /**
  * @brief Asset loading and management for tekki renderer

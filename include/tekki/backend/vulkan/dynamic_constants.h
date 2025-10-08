@@ -6,14 +6,15 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-#include <memory>
 #include <cstdint>
+#include <memory>
+#include <vulkan/vulkan.hpp>
 
-#include "core/common.h"
 #include "buffer.h"
+#include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
 // Constants from Rust original
 constexpr size_t DYNAMIC_CONSTANTS_SIZE_BYTES = 1024 * 1024 * 16;
@@ -22,7 +23,8 @@ constexpr size_t MAX_DYNAMIC_CONSTANTS_BYTES_PER_DISPATCH = 16384;
 constexpr size_t DYNAMIC_CONSTANTS_ALIGNMENT = 256;
 constexpr size_t MAX_DYNAMIC_CONSTANTS_STORAGE_BUFFER_BYTES = 1024 * 1024;
 
-class DynamicConstants {
+class DynamicConstants
+{
 public:
     DynamicConstants(std::shared_ptr<Buffer> buffer);
 
@@ -30,10 +32,9 @@ public:
     void advance_frame();
 
     // Data management
-    template<typename T>
-    uint32_t push(const T& data);
+    template <typename T> uint32_t push(const T& data);
 
-    template<typename T>
+    template <typename T>
     uint32_t push_from_iter(typename std::vector<T>::const_iterator begin, typename std::vector<T>::const_iterator end);
 
     // Getters
@@ -48,12 +49,13 @@ private:
 
 // Template implementation
 
-template<typename T>
-uint32_t DynamicConstants::push(const T& data) {
+template <typename T> uint32_t DynamicConstants::push(const T& data)
+{
     static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
 
     const size_t t_size = sizeof(T);
-    if (frame_offset_bytes_ + t_size >= DYNAMIC_CONSTANTS_SIZE_BYTES) {
+    if (frame_offset_bytes_ + t_size >= DYNAMIC_CONSTANTS_SIZE_BYTES)
+    {
         throw std::runtime_error("Dynamic constants buffer overflow");
     }
 
@@ -69,21 +71,22 @@ uint32_t DynamicConstants::push(const T& data) {
     return buffer_offset;
 }
 
-template<typename T>
-uint32_t DynamicConstants::push_from_iter(
-    typename std::vector<T>::const_iterator begin,
-    typename std::vector<T>::const_iterator end
-) {
+template <typename T>
+uint32_t DynamicConstants::push_from_iter(typename std::vector<T>::const_iterator begin,
+                                          typename std::vector<T>::const_iterator end)
+{
     static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
 
     const size_t t_size = sizeof(T);
     const size_t t_align = alignof(T);
 
-    if (frame_offset_bytes_ + t_size >= DYNAMIC_CONSTANTS_SIZE_BYTES) {
+    if (frame_offset_bytes_ + t_size >= DYNAMIC_CONSTANTS_SIZE_BYTES)
+    {
         throw std::runtime_error("Dynamic constants buffer overflow");
     }
 
-    if (DYNAMIC_CONSTANTS_ALIGNMENT % t_align != 0) {
+    if (DYNAMIC_CONSTANTS_ALIGNMENT % t_align != 0)
+    {
         throw std::runtime_error("Alignment mismatch");
     }
 
@@ -93,7 +96,8 @@ uint32_t DynamicConstants::push_from_iter(
     // This requires access to the buffer's mapped memory
 
     size_t dst_offset = buffer_offset;
-    for (auto it = begin; it != end; ++it) {
+    for (auto it = begin; it != end; ++it)
+    {
         // Copy each element
         // TODO: Copy data to mapped memory
 

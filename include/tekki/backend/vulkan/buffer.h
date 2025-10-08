@@ -6,21 +6,24 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <memory>
 #include <optional>
+#include <vulkan/vulkan.hpp>
 
 #include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
-enum class MemoryLocation {
+enum class MemoryLocation
+{
     GpuOnly,
     CpuToGpu,
     GpuToCpu
 };
 
-struct BufferDesc {
+struct BufferDesc
+{
     size_t size;
     vk::BufferUsageFlags usage;
     MemoryLocation memory_location;
@@ -28,47 +31,39 @@ struct BufferDesc {
 
     BufferDesc() = default;
 
-    static BufferDesc new_gpu_only(size_t size, vk::BufferUsageFlags usage) {
+    static BufferDesc new_gpu_only(size_t size, vk::BufferUsageFlags usage)
+    {
         return BufferDesc{
-            .size = size,
-            .usage = usage,
-            .memory_location = MemoryLocation::GpuOnly,
-            .alignment = std::nullopt
-        };
+            .size = size, .usage = usage, .memory_location = MemoryLocation::GpuOnly, .alignment = std::nullopt};
     }
 
-    static BufferDesc new_cpu_to_gpu(size_t size, vk::BufferUsageFlags usage) {
+    static BufferDesc new_cpu_to_gpu(size_t size, vk::BufferUsageFlags usage)
+    {
         return BufferDesc{
-            .size = size,
-            .usage = usage,
-            .memory_location = MemoryLocation::CpuToGpu,
-            .alignment = std::nullopt
-        };
+            .size = size, .usage = usage, .memory_location = MemoryLocation::CpuToGpu, .alignment = std::nullopt};
     }
 
-    static BufferDesc new_gpu_to_cpu(size_t size, vk::BufferUsageFlags usage) {
+    static BufferDesc new_gpu_to_cpu(size_t size, vk::BufferUsageFlags usage)
+    {
         return BufferDesc{
-            .size = size,
-            .usage = usage,
-            .memory_location = MemoryLocation::GpuToCpu,
-            .alignment = std::nullopt
-        };
+            .size = size, .usage = usage, .memory_location = MemoryLocation::GpuToCpu, .alignment = std::nullopt};
     }
 
-    BufferDesc& alignment(uint64_t alignment) {
+    BufferDesc& alignment(uint64_t alignment)
+    {
         this->alignment = alignment;
         return *this;
     }
 
-    bool operator==(const BufferDesc& other) const {
-        return size == other.size &&
-               usage == other.usage &&
-               memory_location == other.memory_location &&
+    bool operator==(const BufferDesc& other) const
+    {
+        return size == other.size && usage == other.usage && memory_location == other.memory_location &&
                alignment == other.alignment;
     }
 };
 
-class Buffer {
+class Buffer
+{
 public:
     Buffer(vk::Buffer buffer, const BufferDesc& desc, class SubAllocation allocation);
     ~Buffer();

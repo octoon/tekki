@@ -2,7 +2,7 @@
 
 本文档用于跟踪 kajiya 从 Rust 翻译到 C++ 的整体进度。
 
-**当前状态**：已完成基础设施、Vulkan后端、Render Graph模块，准备开始世界渲染器实现。
+**当前状态**：已完成基础设施、Vulkan后端、Render Graph模块、世界渲染器核心结构，准备开始资源管线实现。
 
 ## 架构概览
 
@@ -98,20 +98,29 @@ tekki 延续了 kajiya 的模块化架构：
 - [x] 通道构建器
 - [x] 资源注册表
 
-### 阶段四：资源管线 ⏳ 待开始
+### 阶段四：世界渲染器及渲染 Pass ✅ 已完成
+- [x] WorldRenderer 核心结构
+- [x] Mesh 管理和实例系统
+- [x] 主要渲染器头文件（SSGI、TAA、Post、RTR、Lighting、IRCache、RTDGI、ShadowDenoise、IBL）
+- [x] G-buffer 和深度结构
+- [x] 时间资源管理
+- [x] 绑定描述符集管理
+- [x] 光线追踪加速结构
+
+### 阶段五：资源管线 ⏳ 待开始
 - [ ] glTF 加载器
 - [ ] 图像加载器
 - [ ] 纹理压缩
 - [ ] 材质系统
 
-### 阶段五：渲染器 ⏳ 待开始
+### 阶段六：渲染器实现 ⏳ 待开始
 - [ ] 光栅化通道
 - [ ] 光线追踪通道
 - [ ] 全局光照实现
 - [ ] 去噪
 - [ ] 后处理
 
-### 阶段六：查看器 ⏳ 待开始
+### 阶段七：查看器 ⏳ 待开始
 - [ ] 窗口创建
 - [ ] 输入处理
 - [ ] ImGui 集成
@@ -143,6 +152,38 @@ tekki 延续了 kajiya 的模块化架构：
 - Rust enum → C++ `std::variant`
 - Rust 所有权 → C++ RAII + 智能指针
 - Rust 模式匹配 → C++ `std::visit`
+
+### World Renderer 实现（阶段四）
+
+#### 核心文件
+- `src/renderer/world/WorldRenderer.h` - 世界渲染器主类、Mesh和实例管理
+- `src/renderer/world/WorldRenderer.cpp` - 世界渲染器实现
+- `src/renderer/renderers/renderers.h` - 渲染器通用结构和前向声明
+- `src/renderer/renderers/renderers.cpp` - 渲染器通用结构实现
+- `src/renderer/renderers/ssgi.h` - 屏幕空间全局光照
+- `src/renderer/renderers/taa.h` - 时间抗锯齿
+- `src/renderer/renderers/post.h` - 后处理
+- `src/renderer/renderers/rtr.h` - 光线追踪反射
+- `src/renderer/renderers/lighting.h` - 光照计算
+- `src/renderer/renderers/ircache.h` - 辐照度缓存
+- `src/renderer/renderers/rtdgi.h` - 光线追踪漫反射全局光照
+- `src/renderer/renderers/shadow_denoise.h` - 阴影去噪
+- `src/renderer/renderers/ibl.h` - 基于图像的照明
+
+#### 关键特性
+- **Mesh 管理**：`MeshHandle`、`InstanceHandle` 类型安全句柄
+- **实例系统**：变换管理、动态参数、前帧变换存储
+- **绑定描述符集**：支持大量纹理的无绑定访问
+- **光线追踪**：BLAS/TLAS 加速结构管理
+- **曝光控制**：动态曝光状态和直方图裁剪
+- **时间资源**：跨帧资源重用和状态管理
+
+#### 技术映射
+- Rust `Affine3A` → C++ `glm::mat4`
+- Rust `Vec2/Vec3` → C++ `glm::vec2/glm::vec3`
+- Rust `HashMap` → C++ `std::unordered_map`
+- Rust `Arc<T>` → C++ `std::shared_ptr<T>`
+- Rust `Mutex<T>` → C++ `std::mutex` + `std::lock_guard`
 
 ## 构建
 

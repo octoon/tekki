@@ -8,7 +8,8 @@
 
 #include "core/common.hpp"
 
-namespace tekki::rg {
+namespace tekki::rg
+{
 
 /**
  * @brief Render graph for tekki renderer

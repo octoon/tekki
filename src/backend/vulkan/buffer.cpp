@@ -8,29 +8,33 @@
 
 #include <spdlog/spdlog.h>
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
 Buffer::Buffer(vk::Buffer buffer, const BufferDesc& desc, class SubAllocation allocation)
-    : buffer_(buffer), desc_(desc), allocation_(std::move(allocation)) {
+    : buffer_(buffer), desc_(desc), allocation_(std::move(allocation))
+{
 }
 
-Buffer::~Buffer() {
+Buffer::~Buffer()
+{
     // Buffer destruction should be handled by Device
 }
 
-uint64_t Buffer::device_address(vk::Device device) const {
-    vk::BufferDeviceAddressInfo info{
-        .buffer = buffer_
-    };
+uint64_t Buffer::device_address(vk::Device device) const
+{
+    vk::BufferDeviceAddressInfo info{.buffer = buffer_};
     return device.getBufferAddress(info);
 }
 
-void* Buffer::mapped_data() const {
+void* Buffer::mapped_data() const
+{
     // TODO: Return mapped data from allocation
     return nullptr;
 }
 
-size_t Buffer::mapped_size() const {
+size_t Buffer::mapped_size() const
+{
     return desc_.size;
 }
 

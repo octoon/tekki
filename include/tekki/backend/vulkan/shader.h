@@ -6,38 +6,45 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <memory>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
-struct ShaderModuleDesc {
+struct ShaderModuleDesc
+{
     std::string name;
     std::vector<uint32_t> spirv_code;
     vk::ShaderStageFlagBits stage;
 
     ShaderModuleDesc(const std::string& name, const std::vector<uint32_t>& code, vk::ShaderStageFlagBits stage)
-        : name(name), spirv_code(code), stage(stage) {}
+        : name(name), spirv_code(code), stage(stage)
+    {
+    }
 
-    bool operator==(const ShaderModuleDesc& other) const {
+    bool operator==(const ShaderModuleDesc& other) const
+    {
         return name == other.name && spirv_code == other.spirv_code && stage == other.stage;
     }
 };
 
-struct ShaderModuleDescHash {
-    std::size_t operator()(const ShaderModuleDesc& desc) const {
-        return std::hash<std::string>{}(desc.name) ^
-               std::hash<size_t>{}(desc.spirv_code.size()) ^
+struct ShaderModuleDescHash
+{
+    std::size_t operator()(const ShaderModuleDesc& desc) const
+    {
+        return std::hash<std::string>{}(desc.name) ^ std::hash<size_t>{}(desc.spirv_code.size()) ^
                std::hash<int>{}(static_cast<int>(desc.stage));
     }
 };
 
-class ShaderModule {
+class ShaderModule
+{
 public:
     ShaderModule(vk::Device device, const ShaderModuleDesc& desc);
     ~ShaderModule();
@@ -52,30 +59,37 @@ private:
     ShaderModuleDesc desc_;
 };
 
-struct PipelineLayoutDesc {
+struct PipelineLayoutDesc
+{
     std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     std::vector<vk::PushConstantRange> push_constant_ranges;
 
-    bool operator==(const PipelineLayoutDesc& other) const {
+    bool operator==(const PipelineLayoutDesc& other) const
+    {
         return descriptor_set_layouts == other.descriptor_set_layouts &&
                push_constant_ranges == other.push_constant_ranges;
     }
 };
 
-struct PipelineLayoutDescHash {
-    std::size_t operator()(const PipelineLayoutDesc& desc) const {
+struct PipelineLayoutDescHash
+{
+    std::size_t operator()(const PipelineLayoutDesc& desc) const
+    {
         std::size_t hash = 0;
-        for (auto layout : desc.descriptor_set_layouts) {
+        for (auto layout : desc.descriptor_set_layouts)
+        {
             hash ^= std::hash<uint64_t>{}(reinterpret_cast<uint64_t>(layout));
         }
-        for (const auto& range : desc.push_constant_ranges) {
+        for (const auto& range : desc.push_constant_ranges)
+        {
             hash ^= std::hash<uint32_t>{}(range.offset) ^ std::hash<uint32_t>{}(range.size);
         }
         return hash;
     }
 };
 
-class PipelineLayout {
+class PipelineLayout
+{
 public:
     PipelineLayout(vk::Device device, const PipelineLayoutDesc& desc);
     ~PipelineLayout();
@@ -89,7 +103,8 @@ private:
     PipelineLayoutDesc desc_;
 };
 
-struct GraphicsPipelineDesc {
+struct GraphicsPipelineDesc
+{
     std::vector<std::shared_ptr<ShaderModule>> shader_modules;
     std::shared_ptr<PipelineLayout> layout;
     vk::PipelineVertexInputStateCreateInfo vertex_input;
@@ -104,7 +119,8 @@ struct GraphicsPipelineDesc {
     std::string name;
 };
 
-class GraphicsPipeline {
+class GraphicsPipeline
+{
 public:
     GraphicsPipeline(vk::Device device, const GraphicsPipelineDesc& desc);
     ~GraphicsPipeline();
@@ -118,18 +134,16 @@ private:
     GraphicsPipelineDesc desc_;
 };
 
-class ShaderCompiler {
+class ShaderCompiler
+{
 public:
     ShaderCompiler();
     ~ShaderCompiler();
 
     // Compile HLSL/GLSL to SPIR-V
-    std::vector<uint32_t> compile_from_source(
-        const std::string& source,
-        const std::string& entry_point,
-        vk::ShaderStageFlagBits stage,
-        const std::vector<std::string>& defines = {}
-    );
+    std::vector<uint32_t> compile_from_source(const std::string& source, const std::string& entry_point,
+                                              vk::ShaderStageFlagBits stage,
+                                              const std::vector<std::string>& defines = {});
 
     // Load SPIR-V from file
     std::vector<uint32_t> load_spirv(const std::string& filename);
@@ -143,7 +157,8 @@ private:
     std::unordered_map<std::string, std::vector<uint32_t>> cache_;
 };
 
-class PipelineCache {
+class PipelineCache
+{
 public:
     PipelineCache(const std::shared_ptr<class Device>& device);
     ~PipelineCache();

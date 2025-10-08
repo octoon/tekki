@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include <spdlog/spdlog.h>
 #include <memory>
+#include <spdlog/spdlog.h>
 
-namespace tekki::log {
+namespace tekki::log
+{
 
 /**
  * @brief Initialize the logging system
@@ -28,7 +29,7 @@ std::shared_ptr<spdlog::logger> get_logger();
 // Convenience macros
 #define TEKKI_LOG_TRACE(...) ::tekki::log::get_logger()->trace(__VA_ARGS__)
 #define TEKKI_LOG_DEBUG(...) ::tekki::log::get_logger()->debug(__VA_ARGS__)
-#define TEKKI_LOG_INFO(...)  ::tekki::log::get_logger()->info(__VA_ARGS__)
-#define TEKKI_LOG_WARN(...)  ::tekki::log::get_logger()->warn(__VA_ARGS__)
+#define TEKKI_LOG_INFO(...) ::tekki::log::get_logger()->info(__VA_ARGS__)
+#define TEKKI_LOG_WARN(...) ::tekki::log::get_logger()->warn(__VA_ARGS__)
 #define TEKKI_LOG_ERROR(...) ::tekki::log::get_logger()->error(__VA_ARGS__)
 #define TEKKI_LOG_CRITICAL(...) ::tekki::log::get_logger()->critical(__VA_ARGS__)

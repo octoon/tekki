@@ -7,7 +7,8 @@
 #include <chrono>
 #include <string>
 
-namespace tekki::time {
+namespace tekki::time
+{
 
 using Clock = std::chrono::steady_clock;
 
@@ -18,7 +19,8 @@ double now_seconds();
 std::string format_timestamp(const Clock::time_point& tp);
 
 /// 用于统计帧间隔的计时器
-class FrameTimer {
+class FrameTimer
+{
 public:
     FrameTimer();
 
@@ -35,7 +37,8 @@ private:
 };
 
 /// 作用域计时器，在析构时输出日志
-class ScopedTimer {
+class ScopedTimer
+{
 public:
     explicit ScopedTimer(std::string label);
     ~ScopedTimer();

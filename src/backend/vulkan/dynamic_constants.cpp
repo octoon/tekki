@@ -8,22 +8,24 @@
 
 #include <spdlog/spdlog.h>
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
-DynamicConstants::DynamicConstants(std::shared_ptr<Buffer> buffer)
-    : buffer_(std::move(buffer)) {
-}
+DynamicConstants::DynamicConstants(std::shared_ptr<Buffer> buffer) : buffer_(std::move(buffer)) {}
 
-void DynamicConstants::advance_frame() {
+void DynamicConstants::advance_frame()
+{
     frame_parity_ = (frame_parity_ + 1) % DYNAMIC_CONSTANTS_BUFFER_COUNT;
     frame_offset_bytes_ = 0;
 }
 
-uint32_t DynamicConstants::current_offset() const {
+uint32_t DynamicConstants::current_offset() const
+{
     return static_cast<uint32_t>(frame_parity_ * DYNAMIC_CONSTANTS_SIZE_BYTES + frame_offset_bytes_);
 }
 
-vk::DeviceAddress DynamicConstants::current_device_address(vk::Device device) const {
+vk::DeviceAddress DynamicConstants::current_device_address(vk::Device device) const
+{
     return buffer_->device_address(device) + current_offset();
 }
 

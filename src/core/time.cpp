@@ -4,19 +4,21 @@
 
 #include "core/time.h"
 
-#include "core/log.h"
-
 #include <chrono>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
 #include <utility>
 
-namespace tekki::time {
+#include "core/log.h"
+
+namespace tekki::time
+{
 
 using namespace std::chrono;
 
-static std::string format_with_ms(const Clock::time_point& tp) {
+static std::string format_with_ms(const Clock::time_point& tp)
+{
     // Convert steady_clock to system_clock for formatting
     const auto now_steady = Clock::now();
     const auto now_system = system_clock::now();
@@ -37,38 +39,38 @@ static std::string format_with_ms(const Clock::time_point& tp) {
     return oss.str();
 }
 
-double now_seconds() {
+double now_seconds()
+{
     const auto now = Clock::now();
     const auto since_epoch = duration_cast<duration<double>>(now.time_since_epoch());
     return since_epoch.count();
 }
 
-std::string format_timestamp(const Clock::time_point& tp) {
+std::string format_timestamp(const Clock::time_point& tp)
+{
     return format_with_ms(tp);
 }
 
-FrameTimer::FrameTimer()
-    : m_start(Clock::now()),
-      m_last(m_start) {}
+FrameTimer::FrameTimer() : m_start(Clock::now()), m_last(m_start) {}
 
-
-double FrameTimer::tick() {
+double FrameTimer::tick()
+{
     const auto now = Clock::now();
     m_delta_seconds = duration_cast<duration<double>>(now - m_last).count();
     m_last = now;
     return m_delta_seconds;
 }
 
-double FrameTimer::total_seconds() const {
+double FrameTimer::total_seconds() const
+{
     const auto now = Clock::now();
     return duration_cast<duration<double>>(now - m_start).count();
 }
 
-ScopedTimer::ScopedTimer(std::string label)
-    : m_label(std::move(label)),
-      m_begin(Clock::now()) {}
+ScopedTimer::ScopedTimer(std::string label) : m_label(std::move(label)), m_begin(Clock::now()) {}
 
-ScopedTimer::~ScopedTimer() {
+ScopedTimer::~ScopedTimer()
+{
     const auto end = Clock::now();
     const auto elapsed = duration_cast<duration<double, std::milli>>(end - m_begin).count();
     TEKKI_LOG_INFO("[timer] {} took {:.3f} ms", m_label, elapsed);

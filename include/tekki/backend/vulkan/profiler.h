@@ -6,20 +6,22 @@
 
 #pragma once
 
-#include <vulkan/vulkan.hpp>
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
-#include "core/common.h"
 #include "buffer.h"
+#include "core/common.h"
 
-namespace tekki::backend::vulkan {
+namespace tekki::backend::vulkan
+{
 
 class Device;
 
 // GPU Profiler buffer wrapper
-class ProfilerBuffer {
+class ProfilerBuffer
+{
 public:
     ProfilerBuffer(vk::Buffer buffer, std::shared_ptr<class Allocation> allocation);
     ~ProfilerBuffer();
@@ -33,13 +35,10 @@ private:
 };
 
 // GPU Profiler backend
-class ProfilerBackend {
+class ProfilerBackend
+{
 public:
-    ProfilerBackend(
-        std::shared_ptr<Device> device,
-        std::shared_ptr<class Allocator> allocator,
-        float timestamp_period
-    );
+    ProfilerBackend(std::shared_ptr<Device> device, std::shared_ptr<class Allocator> allocator, float timestamp_period);
 
     std::unique_ptr<ProfilerBuffer> create_query_result_buffer(size_t bytes);
     float timestamp_period() const { return timestamp_period_; }
@@ -51,7 +50,8 @@ private:
 };
 
 // GPU Profiler frame data
-class ProfilerFrame {
+class ProfilerFrame
+{
 public:
     ProfilerFrame(std::unique_ptr<ProfilerBuffer> buffer);
     ~ProfilerFrame();
@@ -63,7 +63,8 @@ private:
 };
 
 // Main GPU profiler interface
-class GpuProfiler {
+class GpuProfiler
+{
 public:
     GpuProfiler(std::shared_ptr<Device> device, std::shared_ptr<class Allocator> allocator);
     ~GpuProfiler();
