@@ -127,10 +127,19 @@ tekki/
    - 实现瞬时资源缓存、动态常量缓冲、同步工具。
    - 可选：移植 GPU profiler、DLSS FFI。
 
-3. **Render Graph 实现**
+3. **Render Graph 实现** ✅ **已完成**
    - 在 `src/render_graph` 设计 C++ 类型：`Graph`, `PassBuilder`, `ResourceHandle`。
    - 支持时间重用（Temporal resources）、调试钩子、Graph 可视化。
    - 编写单元测试验证图的拓扑排序与资源生命周期。
+   - **实现文件**：
+     - `Resource.h` - 资源类型系统、句柄和引用
+     - `Graph.h` - 渲染图主类和执行状态
+     - `PassBuilder.h` - 通道构建器
+     - `ResourceRegistry.h` - 资源注册表
+     - `PassApi.h` - 通道执行API
+     - `Temporal.h` - 时间资源管理
+     - `RenderGraph.h` - 主接口头文件
+     - `RenderGraph.cpp` - 基础实现
 
 4. **世界渲染器及渲染 Pass**
    - 翻译 `WorldRenderer`，拆分 Mesh 管理、实例、光照、LUT、后处理模块。
@@ -171,7 +180,7 @@ tekki/
 | --- | --- | --- | --- |
 | M1 基础设施 | CMake 骨架、core 模块、后台空实现编译通过 | 2-3 周 | ✅ **已完成** |
 | M2 Vulkan 后端 | 完成资源管理、命令录制、同步、Shader 编译、GPU Profiler、DLSS | 4-6 周 | ✅ **已完成** |
-| M3 Render Graph | 图构建、资源追踪、Temporal 支持、单元测试 | 3-4 周 | ⏳ 待开始 |
+| M3 Render Graph | 图构建、资源追踪、Temporal 支持、单元测试 | 3-4 周 | ✅ **已完成** |
 | M4 世界渲染器 | Mesh/实例/TLAS、关键渲染 pass、UI 挂钩 | 6-8 周 | ⏳ 待开始 |
 | M5 工具链 | Viewer、Asset Baker、Hello Demo | 3-4 周 | ⏳ 待开始 |
 | M6 着色器与回归 | 着色器迁移、自动化测试、性能调优 | 4-6 周 | ⏳ 待开始 |
@@ -190,10 +199,10 @@ tekki/
 
 ## 7. 下一步建议
 
-1. 确认构建/依赖管理方案（Conan vs vcpkg）。
-2. 评审着色器迁移路线（Rust-gpu -> GLSL/HLSL 或继续使用 Rust 编译链）。
-3. 根据团队排期细化每阶段任务、负责人与验收标准。
-4. 启动 M1 基础设施实施，建立最小可运行窗口 + Vulkan 设备初始化示例。
+1. **启动 M4 世界渲染器实现** - 开始翻译 `WorldRenderer` 和相关渲染 pass
+2. **完善 Render Graph 单元测试** - 添加拓扑排序和资源生命周期测试
+3. **集成验证** - 将 Render Graph 与现有 Vulkan 后端集成测试
+4. **着色器迁移准备** - 评估 HLSL 翻译策略和工具链
 
 
 ## 8. 当前决策结论
@@ -210,14 +219,42 @@ tekki/
 | --- | --- | --- | --- |
 | M1 基础设施 | 架构负责人 A | Conan 配置、核心模块骨架、CI 脚本草案 | `cmake --build` 成功，生成空壳 demo；CI pipeline 通过 |
 | M2 Vulkan 后端 | 渲染后端负责人 B | Device/Swapchain/Buffer/Image/RT 封装，Shader 编译缓存 | Vulkan 清屏 demo 运行；资源生命周期测试覆盖；无验证层报错 |
-| M3 Render Graph | Render Graph 工程师 C | Graph/PassBuilder/资源追踪 | 支持构建/执行 3 个示例图；提供 Graph 调试可视化 |
+| M3 Render Graph | Render Graph 工程师 C | Graph/PassBuilder/资源追踪 | 支持构建/执行 3 个示例图；提供 Graph 调试可视化 | ✅ **已完成** |
 | M4 世界渲染器 | 世界渲染负责人 D | Mesh 管理、主要渲染 pass、UI 对接 | 样例场景渲染与 Rust 版对齐（截图差异 <5%）；关键调试模式可用 |
 | M5 工具链 | 应用层负责人 E | Viewer、Asset Baker、Hello Demo | Viewer 可加载 `.scene` 与 `.mesh`；CLI 烘焙与原版输出兼容 |
 | M6 着色器与回归 | Shader 负责人 F | HLSL 翻译、自动化对比、性能调优 | CI 自动编译并运行渲染回归；性能/内存指标达成目标 |
 
 > 负责人为占位，后续替换为具体人选；验收标准在详细设计评审中再量化。
 
-## 10. M1 近期行动项
+## 10. Render Graph 实现技术说明
+
+### 核心架构
+- **类型系统**：使用 C++ 模板特化（`ResourceTraits`）替代 Rust 的 trait 系统
+- **资源句柄**：类型安全的 `Handle<T>`, `ExportedHandle<T>`, `Ref<T, V>` 模板
+- **视图类型**：`GpuSrv`（只读）、`GpuUav`（读写）、`GpuRt`（渲染目标）
+- **执行状态**：`CompiledRenderGraph` → `ExecutingRenderGraph` → `RetiredRenderGraph`
+
+### 关键特性
+- 时间资源重用（Temporal resources）
+- 资源生命周期自动管理
+- 通道依赖分析和拓扑排序
+- Vulkan 同步和访问控制
+- 调试钩子和可视化支持
+
+### 文件结构
+```
+src/render_graph/
+├── Resource.h          # 资源类型系统、句柄和引用
+├── Graph.h             # 渲染图主类和执行状态
+├── PassBuilder.h       # 通道构建器
+├── ResourceRegistry.h  # 资源注册表
+├── PassApi.h           # 通道执行API
+├── Temporal.h          # 时间资源管理
+├── RenderGraph.h       # 主接口头文件
+└── RenderGraph.cpp     # 基础实现
+```
+
+## 11. M1 近期行动项
 
 1. 编写 Conan profile（Debug/Release）与 `CMakePresets.json` 草案，确保多平台一致。
 2. 在 `src/core` 搭建 `Logging`、`Time`、`Config` 模块头/源文件空实现，并写最小示例使用。

@@ -2,6 +2,8 @@
 
 本文档用于跟踪 kajiya 从 Rust 翻译到 C++ 的整体进度。
 
+**当前状态**：已完成基础设施、Vulkan后端、Render Graph模块，准备开始世界渲染器实现。
+
 ## 架构概览
 
 tekki 延续了 kajiya 的模块化架构：
@@ -72,45 +74,75 @@ tekki 延续了 kajiya 的模块化架构：
 
 ## 翻译进度
 
-### 阶段一：基础设施（当前）
+### 阶段一：基础设施 ✅ 已完成
 - [x] 项目初始化
 - [x] 构建系统（CMake + Conan）
 - [x] 基础文档
-- [ ] 核心工具
-- [ ] 日志系统
-- [ ] 数学库集成
+- [x] 核心工具
+- [x] 日志系统
+- [x] 数学库集成
 
-### 阶段二：后端
-- [ ] Vulkan 设备初始化
-- [ ] 内存分配器
-- [ ] 命令缓冲管理
-- [ ] 管线管理
-- [ ] 描述符管理
+### 阶段二：后端 ✅ 已完成
+- [x] Vulkan 设备初始化
+- [x] 内存分配器
+- [x] 命令缓冲管理
+- [x] 管线管理
+- [x] 描述符管理
 
-### 阶段三：渲染图
-- [ ] 图构建
-- [ ] 资源追踪
-- [ ] 屏障插入
-- [ ] 执行逻辑
+### 阶段三：渲染图 ✅ 已完成
+- [x] 图构建
+- [x] 资源追踪
+- [x] 屏障插入
+- [x] 执行逻辑
+- [x] 时间资源管理
+- [x] 通道构建器
+- [x] 资源注册表
 
-### 阶段四：资源管线
+### 阶段四：资源管线 ⏳ 待开始
 - [ ] glTF 加载器
 - [ ] 图像加载器
 - [ ] 纹理压缩
 - [ ] 材质系统
 
-### 阶段五：渲染器
+### 阶段五：渲染器 ⏳ 待开始
 - [ ] 光栅化通道
 - [ ] 光线追踪通道
 - [ ] 全局光照实现
 - [ ] 去噪
 - [ ] 后处理
 
-### 阶段六：查看器
+### 阶段六：查看器 ⏳ 待开始
 - [ ] 窗口创建
 - [ ] 输入处理
 - [ ] ImGui 集成
 - [ ] 场景加载
+
+## 已实现模块详情
+
+### Render Graph 实现（阶段三）
+
+#### 核心文件
+- `src/render_graph/Resource.h` - 资源类型系统、句柄和引用
+- `src/render_graph/Graph.h` - 渲染图主类和执行状态
+- `src/render_graph/PassBuilder.h` - 通道构建器
+- `src/render_graph/ResourceRegistry.h` - 资源注册表
+- `src/render_graph/PassApi.h` - 通道执行API
+- `src/render_graph/Temporal.h` - 时间资源管理
+- `src/render_graph/RenderGraph.h` - 主接口头文件
+- `src/render_graph/RenderGraph.cpp` - 基础实现
+
+#### 关键特性
+- **类型安全**：使用模板特化（`ResourceTraits`）替代 Rust trait 系统
+- **资源管理**：`Handle<T>`, `ExportedHandle<T>`, `Ref<T, V>` 模板
+- **视图类型**：`GpuSrv`（只读）、`GpuUav`（读写）、`GpuRt`（渲染目标）
+- **执行状态**：`CompiledRenderGraph` → `ExecutingRenderGraph` → `RetiredRenderGraph`
+- **时间资源**：支持跨帧资源重用和状态管理
+
+#### 技术映射
+- Rust trait → C++ 模板特化
+- Rust enum → C++ `std::variant`
+- Rust 所有权 → C++ RAII + 智能指针
+- Rust 模式匹配 → C++ `std::visit`
 
 ## 构建
 
