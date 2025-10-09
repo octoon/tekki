@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/render_graph/resource.h"
 #include "tekki/render_graph/resource_registry.h"
 #include "tekki/render_graph/pass_builder.h"

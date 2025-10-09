@@ -5,7 +5,7 @@
 #include <vulkan/vulkan.h>
 
 #include "gpu_profiler/backend/ash/VulkanProfilerFrame.hpp"
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 
 namespace tekki::backend::vulkan
 {

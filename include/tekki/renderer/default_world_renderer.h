@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/asset/Image.h"
 #include "tekki/mesh/TexParams.h"
 #include "tekki/mesh/GpuImage.h"

@@ -5,7 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include <format>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/backend/vulkan/Device.h"
 #include "tekki/backend/vulkan/CommandBuffer.h"
 

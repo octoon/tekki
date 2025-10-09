@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <chrono>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/backend/file.h"
 
 namespace tekki::backend {

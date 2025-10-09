@@ -12,7 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/backend/file.h"
 #include "tekki/shader_compiler/CompiledShader.h"
 

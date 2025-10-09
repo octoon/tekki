@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "RenderGraph.h"
 #include "Image.h"
 #include "Buffer.h"

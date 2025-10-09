@@ -6,7 +6,7 @@
 #include <cstring>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 
 // Vulkan extension function pointers
 // In Rust, ash provides these, but in C++ we load them manually

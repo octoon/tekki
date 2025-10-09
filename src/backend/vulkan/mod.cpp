@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <stdexcept>
 #include <algorithm>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "vulkan/vulkan.h"
 #include "device.h"
 #include "surface.h"

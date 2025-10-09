@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include <stdexcept>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/backend/vk_sync.h"
 #include "tekki/render_graph/RenderGraph.h"
 #include "tekki/render_graph/Resource.h"

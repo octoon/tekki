@@ -7,7 +7,7 @@
 #include <mutex>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
-#include <tekki/gpu_allocator/gpu_allocator.h>
+#include <tekki/gpu_allocator/vulkan/allocator.h>
 
 namespace tekki::backend::vulkan {
 

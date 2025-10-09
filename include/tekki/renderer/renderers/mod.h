@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 
 namespace tekki::renderer::renderers {
 

@@ -4,7 +4,7 @@
 #include <memory>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 
 namespace tekki::rust_shaders {
 

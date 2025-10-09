@@ -3,7 +3,7 @@
 #include <vector>
 #include <memory>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "RenderGraph.h"
 #include "Handle.h"
 

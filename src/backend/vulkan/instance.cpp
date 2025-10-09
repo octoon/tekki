@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include <ash/ash.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include <stdexcept>
 
 namespace tekki::backend::vulkan {

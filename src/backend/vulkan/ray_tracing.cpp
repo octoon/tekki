@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan.h>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "dynamic_constants.h"
 #include "device.h"
 #include "shader.h"

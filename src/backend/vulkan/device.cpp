@@ -8,7 +8,7 @@
 #include "vulkan/vulkan.h"
 #include "gpu_allocator.h"
 #include "gpu_profiler.h"
-#include "core/Result.h"
+#include "core/result.h"
 #include "vulkan/buffer.h"
 #include "vulkan/physical_device.h"
 #include "vulkan/profiler.h"

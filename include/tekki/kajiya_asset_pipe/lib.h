@@ -9,7 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <glm/gtc/quaternion.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "kajiya_asset/mesh.h"
 
 namespace tekki::kajiya_asset_pipe {

@@ -1,29 +1,31 @@
 # GPU Allocator library
-# TEMPORARILY DISABLED - HAS COMPILATION ERRORS
-# add_library(tekki-gpu-allocator STATIC
-#     gpu_allocator/allocator_base.cpp
-#     gpu_allocator/gpu_allocator.cpp
-# )
-#
-# target_include_directories(tekki-gpu-allocator
-#     PUBLIC
-#         ${CMAKE_CURRENT_SOURCE_DIR}
-#         ${CMAKE_CURRENT_SOURCE_DIR}/../include
-#     PRIVATE
-#         ${CMAKE_CURRENT_SOURCE_DIR}/gpu_allocator
-# )
-#
-# target_link_libraries(tekki-gpu-allocator
-#     PUBLIC
-#         tekki_compile_options
-#         Vulkan::Vulkan
-#         spdlog::spdlog
-# )
+add_library(tekki-gpu-allocator STATIC
+    gpu_allocator/result.cpp
+    gpu_allocator/allocator.cpp
+    gpu_allocator/allocator/dedicated_block_allocator.cpp
+    gpu_allocator/allocator/free_list_allocator.cpp
+    gpu_allocator/vulkan/allocator.cpp
+)
+
+target_include_directories(tekki-gpu-allocator
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/gpu_allocator
+)
+
+target_link_libraries(tekki-gpu-allocator
+    PUBLIC
+        tekki_compile_options
+        Vulkan::Vulkan
+        spdlog::spdlog
+)
 
 # GPU Profiler library
 add_library(tekki-gpu-profiler STATIC
     gpu_profiler/gpu_profiler.cpp
-    gpu_profiler/vulkan_profiler.cpp
+    gpu_profiler/backend/vulkan.cpp
 )
 
 target_include_directories(tekki-gpu-profiler

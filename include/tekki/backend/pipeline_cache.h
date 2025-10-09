@@ -6,7 +6,7 @@
 #include <string>
 #include <future>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/backend/rust_shader_compiler.h"

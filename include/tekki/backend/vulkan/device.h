@@ -10,9 +10,9 @@
 #include <stdexcept>
 #include <glm/glm.hpp>
 #include "vulkan/vulkan.h"
-#include <tekki/gpu_allocator/gpu_allocator.h>
+#include <tekki/gpu_allocator/vulkan/allocator.h>
 #include <tekki/gpu_profiler/gpu_profiler.h>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "vulkan/buffer.h"
 #include "vulkan/physical_device.h"
 #include "vulkan/profiler.h"

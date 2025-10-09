@@ -3,7 +3,7 @@
 #include <vector>
 #include <memory>
 #include <string>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include <glm/glm.hpp>
 
 namespace tekki::backend {

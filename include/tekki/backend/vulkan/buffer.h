@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <vulkan/vulkan.h>
-#include <tekki/gpu_allocator/gpu_allocator.h>
+#include <tekki/gpu_allocator/vulkan/allocator.h>
 #include "device.h"
 
 namespace tekki::backend::vulkan {

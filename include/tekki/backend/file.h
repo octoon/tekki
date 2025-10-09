@@ -12,7 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 
 namespace tekki::backend
 {

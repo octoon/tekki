@@ -5,7 +5,7 @@
 #include <functional>
 #include <filesystem>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "render_graph/graph.h"
 #include "render_graph/resource.h"
 #include "kajiya_backend/vk_sync.h"

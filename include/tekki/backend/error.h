@@ -6,7 +6,7 @@
 #include <vector>
 #include <backtrace.h>
 #include <vulkan/vulkan.h>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 
 namespace tekki::backend {
 

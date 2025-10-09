@@ -4,7 +4,7 @@
 #include <vector>
 #include <optional>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "vulkan/vulkan.h"
 #include "device.h"
 #include "surface.h"

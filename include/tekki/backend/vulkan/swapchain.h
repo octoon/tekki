@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "device.h"
 #include "surface.h"
 #include "image.h"

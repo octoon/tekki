@@ -5,7 +5,7 @@
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
-#include "tekki/core/Result.h"
+#include "tekki/core/result.h"
 #include "kajiya_simple.h"
 #include "Opt.h"
 #include "PersistedState.h"
