@@ -9,7 +9,7 @@
 // For now, placeholder implementations
 
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include <stb_image_resize2.h>
+#include <stb_image_resize.h>
 
 namespace tekki::asset {
 
@@ -33,10 +33,10 @@ std::vector<uint8_t> ResizeImage(
     uint32_t dstW, uint32_t dstH
 ) {
     std::vector<uint8_t> dst(dstW * dstH * 4);
-    stbir_resize_uint8_linear(
+    stbir_resize_uint8(
         src.data(), srcW, srcH, srcW * 4,
         dst.data(), dstW, dstH, dstW * 4,
-        STBIR_RGBA
+        4  // RGBA = 4 channels
     );
     return dst;
 }
@@ -106,7 +106,7 @@ Result<GpuImageProto> GpuImageCreator::ProcessRgba8(const RawRgba8Image& src) {
                 }
             }
 
-            if (params_.compression == TexCompressionMode::Bc5) {
+            if (params_.compression == TexCompressionMode::Rg) {
                 proto.format = (params_.gamma == TexGamma::Srgb)
                     ? VK_FORMAT_BC5_UNORM_BLOCK  // BC5 doesn't have SRGB variant
                     : VK_FORMAT_BC5_UNORM_BLOCK;
@@ -187,7 +187,7 @@ void GpuImageCreator::ApplyChannelSwizzle(std::vector<uint8_t>& rgba) {
 // In real implementation, use intel_tex_2 or similar library
 
 std::vector<uint8_t> GpuImageCreator::CompressBC5(
-    const std::vector<uint8_t>& rgba,
+    [[maybe_unused]] const std::vector<uint8_t>& rgba,
     uint32_t width,
     uint32_t height
 ) {
@@ -208,7 +208,7 @@ std::vector<uint8_t> GpuImageCreator::CompressBC5(
 }
 
 std::vector<uint8_t> GpuImageCreator::CompressBC7(
-    const std::vector<uint8_t>& rgba,
+    [[maybe_unused]] const std::vector<uint8_t>& rgba,
     uint32_t width,
     uint32_t height,
     bool hasAlpha

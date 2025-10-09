@@ -11,7 +11,6 @@
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
-#include "queue_family.h"
 #include "tekki/core/common.h"
 
 namespace tekki::backend::vulkan
@@ -19,6 +18,24 @@ namespace tekki::backend::vulkan
 
 class Instance;
 class Surface;
+
+// QueueFamily - merged from queue_family.h (corresponds to Rust's QueueFamily struct)
+class QueueFamily
+{
+public:
+    uint32_t index;
+    vk::QueueFlags flags;
+    vk::QueueFamilyProperties properties;
+
+    QueueFamily(uint32_t idx, vk::QueueFlags f) : index(idx), flags(f) {}
+    QueueFamily(uint32_t idx, const vk::QueueFamilyProperties& props)
+        : index(idx), flags(props.queueFlags), properties(props) {}
+
+    // Query methods
+    bool supports_graphics() const { return static_cast<bool>(flags & vk::QueueFlagBits::eGraphics); }
+    bool supports_compute() const { return static_cast<bool>(flags & vk::QueueFlagBits::eCompute); }
+    bool supports_transfer() const { return static_cast<bool>(flags & vk::QueueFlagBits::eTransfer); }
+};
 
 /**
  * @brief Physical device wrapper

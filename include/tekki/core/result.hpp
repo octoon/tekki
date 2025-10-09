@@ -81,8 +81,9 @@ public:
     const T* operator->() const { return &Value(); }
 
 private:
-    friend Result Ok<T>(T&&);
-    friend Result Err<T>(std::string);
+    template<typename U> friend Result<U> Ok(U&&);
+    template<typename U> friend Result<U> Err(const std::string&);
+    template<typename U> friend Result<U> Err(std::string&&);
 
     std::variant<T, std::string> data_;
 
@@ -114,7 +115,8 @@ public:
 
 private:
     friend Result Ok();
-    friend Result Err<void>(std::string);
+    template<typename U> friend Result<U> Err(const std::string&);
+    template<typename U> friend Result<U> Err(std::string&&);
 
     std::optional<std::string> error_;
 

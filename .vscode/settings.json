@@ -15,7 +15,8 @@
         "*.glsl": "cpp",
         "*.vert": "cpp",
         "*.frag": "cpp",
-        "*.comp": "cpp"
+        "*.comp": "cpp",
+        "memory": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled",
     "C_Cpp.intelliSenseEngine": "default",

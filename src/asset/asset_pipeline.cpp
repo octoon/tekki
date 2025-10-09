@@ -6,6 +6,7 @@
 #include "tekki/asset/asset_pipeline.h"
 #include "tekki/core/log.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <thread>
 #include <queue>
@@ -82,7 +83,8 @@ std::future<Result<std::shared_ptr<PackedTriMesh>>> AssetCache::LoadMesh(
             auto it = impl_->meshCache.find(hash);
             if (it != impl_->meshCache.end()) {
                 TEKKI_LOG_INFO("Mesh cache hit: {}", params.path.string());
-                return Ok(it->second);
+                std::shared_ptr<PackedTriMesh> meshPtr = it->second;  // Copy shared_ptr
+                return Ok(std::move(meshPtr));
             }
         }
 
@@ -101,7 +103,8 @@ std::future<Result<std::shared_ptr<PackedTriMesh>>> AssetCache::LoadMesh(
             impl_->meshCache[hash] = packed;
         }
 
-        return Ok(packed);
+        std::shared_ptr<PackedTriMesh> result = packed;
+        return Ok(std::move(result));
     });
 }
 
@@ -117,7 +120,8 @@ std::future<Result<std::shared_ptr<GpuImageProto>>> AssetCache::LoadImage(
             auto it = impl_->imageCache.find(hash);
             if (it != impl_->imageCache.end()) {
                 TEKKI_LOG_INFO("Image cache hit");
-                return Ok(it->second);
+                std::shared_ptr<GpuImageProto> imagePtr = it->second;  // Copy shared_ptr
+                return Ok(std::move(imagePtr));
             }
         }
 
@@ -141,7 +145,8 @@ std::future<Result<std::shared_ptr<GpuImageProto>>> AssetCache::LoadImage(
             impl_->imageCache[hash] = image;
         }
 
-        return Ok(image);
+        std::shared_ptr<GpuImageProto> result = image;
+        return Ok(std::move(result));
     });
 }
 

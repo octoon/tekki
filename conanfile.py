@@ -11,7 +11,9 @@ class TekkiRecipe(ConanFile):
     license = "MIT OR Apache-2.0"
     author = "tekki Contributors"
     url = "https://github.com/yourusername/tekki"
-    description = "C++ port of kajiya - Experimental real-time global illumination renderer"
+    description = (
+        "C++ port of kajiya - Experimental real-time global illumination renderer"
+    )
     topics = ("rendering", "vulkan", "raytracing", "global-illumination")
 
     # Binary configuration
@@ -59,7 +61,7 @@ class TekkiRecipe(ConanFile):
         # SPIRV tools
         self.requires("spirv-cross/1.4.313.0")
         self.requires("spirv-tools/1.4.313.0")
-        self.requires("spirv-reflect/1.3.250.1")
+        self.requires("spirv-reflect/1.4.313.0")
 
         # Utilities
         self.requires("spdlog/1.14.1")

@@ -77,3 +77,6 @@ libdxcompiler.dynlib
 *.DB
 *.DB-shm
 *.DB-wal
+
+
+/kajiya_out/

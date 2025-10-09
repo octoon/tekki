@@ -125,6 +125,11 @@ public:
 
     std::vector<uint8_t>& GetBytes() { return bytes_; }
 
+    // Add deferred blob
+    void AddDeferred(size_t fixupAddr, std::unique_ptr<FlattenContext> nested) {
+        deferred_.push_back({fixupAddr, std::move(nested)});
+    }
+
 private:
     struct DeferredBlob {
         size_t fixupAddr;

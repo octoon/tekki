@@ -11,6 +11,13 @@
 
 namespace tekki::asset {
 
+// GltfData structure definition (shared with gltf_loader.cpp)
+struct GltfLoader::GltfData {
+    tinygltf::Model model;
+    std::vector<std::vector<uint8_t>> buffers;
+    std::vector<ImageSource> images;
+};
+
 // Helper to iterate glTF node tree
 template<typename Func>
 void IterateNodeTree(

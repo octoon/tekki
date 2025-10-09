@@ -139,10 +139,10 @@ std::vector<uint8_t> SerializeGpuImage(const GpuImageProto& image) {
         auto nestedMip = std::make_unique<FlattenContext>();
         nestedMip->WriteBytes(mip.data(), mip.size());
 
-        nestedMips->deferred_.push_back({mipFixupAddr, std::move(nestedMip)});
+        nestedMips->AddDeferred(mipFixupAddr, std::move(nestedMip));
     }
 
-    ctx.deferred_.push_back({mipsFixupAddr, std::move(nestedMips)});
+    ctx.AddDeferred(mipsFixupAddr, std::move(nestedMips));
 
     std::vector<uint8_t> output;
     ctx.Finish(output);
@@ -155,14 +155,14 @@ std::vector<uint8_t> SerializePackedMesh(const PackedTriMesh& mesh) {
     FlattenContext ctx;
 
     // Helper to write vector
-    auto writeVec = [&ctx](const auto& vec, const char* name) {
+    auto writeVec = [&ctx](const auto& vec, [[maybe_unused]] const char* name) {
         using T = typename std::decay_t<decltype(vec)>::value_type;
         size_t fixupAddr = ctx.WriteVecHeader<T>(vec.size());
 
         auto nested = std::make_unique<FlattenContext>();
         nested->WriteBytes(vec.data(), vec.size() * sizeof(T));
 
-        ctx.deferred_.push_back({fixupAddr, std::move(nested)});
+        ctx.AddDeferred(fixupAddr, std::move(nested));
     };
 
     writeVec(mesh.verts, "verts");
@@ -196,7 +196,7 @@ std::vector<uint8_t> SerializePackedMesh(const PackedTriMesh& mesh) {
         nestedMaps->WritePlainField(&ref, sizeof(ref));
     }
 
-    ctx.deferred_.push_back({mapsFixupAddr, std::move(nestedMaps)});
+    ctx.AddDeferred(mapsFixupAddr, std::move(nestedMaps));
 
     std::vector<uint8_t> output;
     ctx.Finish(output);

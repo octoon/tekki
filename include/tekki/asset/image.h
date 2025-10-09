@@ -13,6 +13,7 @@
 #include <memory>
 #include <variant>
 #include <filesystem>
+#include <array>
 
 namespace tekki::asset {
 

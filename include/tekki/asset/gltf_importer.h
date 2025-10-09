@@ -41,9 +41,9 @@ class UriResolver {
 public:
     static ParsedUri Parse(const std::string& uri);
     static Result<std::vector<uint8_t>> Read(const std::optional<std::filesystem::path>& basePath, const std::string& uri);
+    static Result<std::vector<uint8_t>> DecodeBase64(const std::string& base64);
 
 private:
-    static Result<std::vector<uint8_t>> DecodeBase64(const std::string& base64);
     static Result<std::vector<uint8_t>> ReadFile(const std::filesystem::path& path);
 };
 

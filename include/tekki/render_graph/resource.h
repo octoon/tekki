@@ -7,17 +7,6 @@
 #include "../backend/vulkan/image.h"
 #include "../backend/vulkan/ray_tracing.h"
 
-namespace tekki::backend::vulkan
-{
-    struct ImageViewDesc
-    {
-        uint32_t mip_level = 0;
-        uint32_t mip_count = 1;
-        uint32_t array_layer = 0;
-        uint32_t array_layer_count = 1;
-    };
-}
-
 namespace tekki::render_graph
 {
 

@@ -1,8 +1,8 @@
 // tekki - C++ port of kajiya renderer
-#include <fmt/format.h>
 // Copyright (c) 2025 tekki Contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#include <fmt/format.h>
 #include "tekki/asset/mesh.h"
 #include "tekki/asset/gltf_importer.h"
 #include "tekki/core/log.h"
@@ -12,6 +12,7 @@
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #include <tiny_gltf.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <queue>
@@ -244,4 +245,4 @@ MeshMaterial GltfLoader::LoadMaterial(
     return result;
 }
 
-// Continue in next file...
+} // namespace tekki::asset

@@ -15,6 +15,10 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
 namespace tekki::backend::vulkan
 {
 
@@ -133,7 +137,15 @@ struct ImageDesc
 
     ImageDesc& SetAllMipLevels()
     {
-        auto mip_count = [](uint32_t e) -> uint16_t { return static_cast<uint16_t>(32 - __builtin_clz(e)); };
+        auto mip_count = [](uint32_t e) -> uint16_t {
+#ifdef _MSC_VER
+            unsigned long index;
+            _BitScanReverse(&index, e);
+            return static_cast<uint16_t>(index + 1);
+#else
+            return static_cast<uint16_t>(32 - __builtin_clz(e));
+#endif
+        };
 
         mip_levels = std::max({mip_count(extent[0]), mip_count(extent[1]), mip_count(extent[2])});
         return *this;

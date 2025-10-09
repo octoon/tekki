@@ -331,13 +331,6 @@ vk::ShaderStageFlags ShaderPipelineStageToVk(ShaderPipelineStage stage);
 // These functions are declared but not yet implemented
 // ============================================================================
 
-// TODO: Ray tracing pipeline support
-struct RayTracingPipeline
-{
-    ShaderPipelineCommon common;
-    // TODO: Add ray tracing specific members (shader groups, etc.)
-};
-
 // TODO: Pipeline cache (separate from shader cache)
 class PipelineCache
 {

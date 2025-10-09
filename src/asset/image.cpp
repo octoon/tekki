@@ -75,7 +75,14 @@ Result<RawImage> ImageLoader::LoadFromMemory(const std::vector<uint8_t>& data) {
     }
 
     // Fall back to standard formats (PNG, JPEG, etc.)
-    return LoadStandard(data);
+    auto standardResult = LoadStandard(data);
+    if (!standardResult) {
+        return Err<RawImage>(standardResult.Error());
+    }
+
+    RawImage raw;
+    raw.data = std::move(*standardResult);
+    return Ok(std::move(raw));
 }
 
 // Simple DDS header structures

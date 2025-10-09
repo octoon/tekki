@@ -14,9 +14,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "buffer.h"
-#include "queue_family.h"
 #include "tekki/core/common.h"
-#include "dlss.h"
 #include "profiler.h"
 
 namespace tekki::backend::vulkan
@@ -139,11 +137,6 @@ public:
     // GPU Profiler
     std::shared_ptr<GpuProfiler> gpu_profiler() const { return gpu_profiler_; }
 
-    // DLSS
-    std::shared_ptr<DlssRenderer> create_dlss_renderer(const glm::uvec2& input_resolution,
-                                                       const glm::uvec2& target_resolution);
-    bool dlss_available() const { return dlss_available_; }
-
     // Crash marker tracking (for debugging device lost errors)
     void record_crash_marker(const CommandBuffer& cb, const std::string& name);
     void report_error(const std::exception& err);
@@ -192,9 +185,6 @@ private:
 
     // GPU Profiler
     std::shared_ptr<GpuProfiler> gpu_profiler_;
-
-    // DLSS
-    bool dlss_available_{false};
 
     static constexpr uint32_t RESERVED_DESCRIPTOR_COUNT = 32;
 };
