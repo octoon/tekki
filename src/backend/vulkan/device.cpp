@@ -13,6 +13,7 @@
 
 #include "../../include/tekki/backend/error.h"
 #include "../../include/tekki/backend/vulkan/allocator.h"
+#include "../../include/tekki/backend/vulkan/image.h"
 
 namespace tekki::backend::vulkan
 {
@@ -518,6 +519,160 @@ void Device::immediate_destroy_buffer(const std::shared_ptr<Buffer>& buffer)
         device_.destroyBuffer(buffer->raw());
         vmaFreeMemory(global_allocator_->raw(), buffer->allocation());
     }
+}
+
+std::shared_ptr<Image> Device::create_image(const ImageDesc& desc, const std::vector<ImageSubResourceData>& initial_data)
+{
+    spdlog::info("Creating an image: format={}, extent=[{}, {}, {}], mipLevels={}", vk::to_string(desc.format),
+                 desc.extent[0], desc.extent[1], desc.extent[2], desc.mip_levels);
+
+    // Get image create info
+    vk::ImageCreateInfo create_info = GetImageCreateInfo(desc, !initial_data.empty());
+
+    // Create image
+    vk::Image image = device_.createImage(create_info);
+
+    // Get memory requirements
+    vk::MemoryRequirements requirements = device_.getImageMemoryRequirements(image);
+
+    // Allocate memory
+    VmaAllocationCreateInfo alloc_info{};
+    alloc_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    alloc_info.requiredFlags = 0;
+
+    VmaAllocation allocation;
+    VkResult result = vmaAllocateMemoryForImage(global_allocator_->raw(), image, &alloc_info, &allocation, nullptr);
+
+    if (result != VK_SUCCESS)
+    {
+        device_.destroyImage(image);
+        throw AllocationError("image", "vmaAllocateMemoryForImage failed");
+    }
+
+    // Bind memory
+    VmaAllocationInfo allocation_info;
+    vmaGetAllocationInfo(global_allocator_->raw(), allocation, &allocation_info);
+
+    result = vkBindImageMemory(device_, image, allocation_info.deviceMemory, allocation_info.offset);
+    if (result != VK_SUCCESS)
+    {
+        vmaFreeMemory(global_allocator_->raw(), allocation);
+        device_.destroyImage(image);
+        throw VulkanError(static_cast<vk::Result>(result), "vkBindImageMemory");
+    }
+
+    // Upload initial data if provided
+    if (!initial_data.empty())
+    {
+        // Calculate total data size
+        size_t total_bytes = 0;
+        for (const auto& sub : initial_data)
+        {
+            total_bytes += sub.slice_pitch > 0 ? sub.slice_pitch : sub.row_pitch;
+        }
+
+        // Create staging buffer
+        BufferDesc staging_desc = BufferDesc::new_cpu_to_gpu(total_bytes, vk::BufferUsageFlagBits::eTransferSrc);
+        auto staging_buffer = create_buffer_impl(device_, *global_allocator_, staging_desc, "Image staging buffer");
+
+        // Copy data to staging buffer
+        void* mapped = staging_buffer->mapped_data();
+        if (!mapped)
+        {
+            vmaFreeMemory(global_allocator_->raw(), allocation);
+            device_.destroyImage(image);
+            throw std::runtime_error("Failed to map staging buffer");
+        }
+
+        size_t offset = 0;
+        std::vector<vk::BufferImageCopy> copy_regions;
+
+        for (size_t level = 0; level < initial_data.size(); ++level)
+        {
+            const auto& sub = initial_data[level];
+            size_t level_size = sub.slice_pitch > 0 ? sub.slice_pitch : sub.row_pitch;
+
+            std::memcpy(static_cast<uint8_t*>(mapped) + offset, sub.data, level_size);
+
+            vk::BufferImageCopy region{};
+            region.bufferOffset = offset;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+            region.imageSubresource.mipLevel = static_cast<uint32_t>(level);
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = vk::Offset3D{0, 0, 0};
+            region.imageExtent = vk::Extent3D{std::max(1u, desc.extent[0] >> level), std::max(1u, desc.extent[1] >> level),
+                                              std::max(1u, desc.extent[2] >> level)};
+
+            copy_regions.push_back(region);
+            offset += level_size;
+        }
+
+        // Copy from staging buffer to image
+        with_setup_cb([&](vk::CommandBuffer cb)
+                      {
+                          // Transition image to transfer dst
+                          vk::ImageMemoryBarrier barrier{};
+                          barrier.oldLayout = vk::ImageLayout::eUndefined;
+                          barrier.newLayout = vk::ImageLayout::eTransferDstOptimal;
+                          barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                          barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                          barrier.image = image;
+                          barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+                          barrier.subresourceRange.baseMipLevel = 0;
+                          barrier.subresourceRange.levelCount = desc.mip_levels;
+                          barrier.subresourceRange.baseArrayLayer = 0;
+                          barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+                          barrier.srcAccessMask = vk::AccessFlagBits::eNone;
+                          barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+
+                          cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
+                                             vk::DependencyFlags{}, 0, nullptr, 0, nullptr, 1, &barrier);
+
+                          // Copy buffer to image
+                          cb.copyBufferToImage(staging_buffer->raw(), image, vk::ImageLayout::eTransferDstOptimal,
+                                               copy_regions);
+
+                          // Transition image to shader read
+                          barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+                          barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+                          barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+                          barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+                          cb.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                             vk::PipelineStageFlagBits::eFragmentShader, vk::DependencyFlags{}, 0, nullptr,
+                                             0, nullptr, 1, &barrier);
+                      });
+
+        // Staging buffer will be automatically destroyed
+    }
+
+    return std::make_shared<Image>(image, desc, allocation, global_allocator_->raw());
+}
+
+void Device::immediate_destroy_image(const std::shared_ptr<Image>& image)
+{
+    if (image)
+    {
+        device_.destroyImage(image->raw());
+        vmaFreeMemory(global_allocator_->raw(), image->allocation());
+    }
+}
+
+vk::ImageView Device::CreateImageView(const ImageViewDesc& desc, const ImageDesc& image_desc, vk::Image image)
+{
+    // Check depth format constraint
+    if (image_desc.format == vk::Format::eD32Sfloat && !(desc.aspect_mask & vk::ImageAspectFlagBits::eDepth))
+    {
+        throw ResourceAccessError("Depth-only resource used without the vk::ImageAspectFlags::DEPTH flag");
+    }
+
+    vk::ImageViewCreateInfo create_info = Image::GetViewDescImpl(desc, image_desc);
+    create_info.image = image;
+
+    return device_.createImageView(create_info);
 }
 
 std::shared_ptr<DlssRenderer> Device::create_dlss_renderer(const glm::uvec2& input_resolution,

@@ -59,6 +59,7 @@ class TekkiRecipe(ConanFile):
         # SPIRV tools
         self.requires("spirv-cross/1.4.313.0")
         self.requires("spirv-tools/1.4.313.0")
+        self.requires("spirv-reflect/1.3.250.1")
 
         # Utilities
         self.requires("spdlog/1.14.1")

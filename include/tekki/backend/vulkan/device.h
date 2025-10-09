@@ -114,6 +114,14 @@ public:
 
     void immediate_destroy_buffer(const std::shared_ptr<Buffer>& buffer);
 
+    std::shared_ptr<class Image> create_image(const struct ImageDesc& desc,
+                                              const std::vector<struct ImageSubResourceData>& initial_data = {});
+
+    void immediate_destroy_image(const std::shared_ptr<class Image>& image);
+
+    vk::ImageView CreateImageView(const struct ImageViewDesc& desc, const struct ImageDesc& image_desc,
+                                   vk::Image image);
+
     // Frame management
     std::shared_ptr<DeviceFrame> begin_frame();
     void finish_frame(const std::shared_ptr<DeviceFrame>& frame);
