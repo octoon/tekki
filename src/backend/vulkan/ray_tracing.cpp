@@ -1,4 +1,3 @@
-```cpp
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include <memory>
 #include <vector>
@@ -461,7 +460,7 @@ std::shared_ptr<RayTracingShaderTable> Device::CreateRayTracingShaderTable(const
         auto hitShaderBindingTable = createBindingTable(desc.RaygenEntryCount + desc.MissEntryCount, desc.HitEntryCount);
 
         auto shaderTable = std::make_shared<RayTracingShaderTable>();
-        
+
         if (raygenShaderBindingTable) {
             shaderTable->RaygenShaderBindingTableBuffer = raygenShaderBindingTable;
             shaderTable->RaygenShaderBindingTable.deviceAddress = raygenShaderBindingTable->GetDeviceAddress();
@@ -517,4 +516,207 @@ std::shared_ptr<RayTracingPipeline> CreateRayTracingPipeline(const std::shared_p
 
         VkPipelineLayoutCreateInfo layoutCreateInfo{};
         layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layoutCreateInfo.setLayoutCount = static_cast<uint32
+        layoutCreateInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+        layoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
+        layoutCreateInfo.pushConstantRangeCount = 0;
+        layoutCreateInfo.pPushConstantRanges = nullptr;
+
+        VkPipelineLayout pipelineLayout;
+        VkResult result = vkCreatePipelineLayout(device->Raw, &layoutCreateInfo, nullptr, &pipelineLayout);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout");
+        }
+
+        std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups;
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+        std::vector<std::string> entryPointNames;
+
+        uint32_t raygenEntryCount = 0;
+        uint32_t missEntryCount = 0;
+        uint32_t hitEntryCount = 0;
+
+        auto createShaderModule = [&](const PipelineShader<std::vector<uint32_t>>& shader) -> std::pair<VkShaderModule, std::string> {
+            VkShaderModuleCreateInfo shaderInfo{};
+            shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+            shaderInfo.codeSize = shader.Code.size() * sizeof(uint32_t);
+            shaderInfo.pCode = shader.Code.data();
+
+            VkShaderModule shaderModule;
+            VkResult res = vkCreateShaderModule(device->Raw, &shaderInfo, nullptr, &shaderModule);
+            if (res != VK_SUCCESS) {
+                throw std::runtime_error("Failed to create shader module");
+            }
+
+            return {shaderModule, shader.Desc.Entry};
+        };
+
+        std::optional<ShaderPipelineStage> prevStage;
+
+        for (const auto& shader : shaders) {
+            uint32_t groupIdx = static_cast<uint32_t>(shaderStages.size());
+
+            switch (shader.Desc.Stage) {
+                case ShaderPipelineStage::RayGen: {
+                    if (prevStage.has_value() && prevStage != ShaderPipelineStage::RayGen) {
+                        throw std::runtime_error("Invalid shader stage order");
+                    }
+                    raygenEntryCount++;
+
+                    auto [module, entryPoint] = createShaderModule(shader);
+                    entryPointNames.push_back(entryPoint);
+
+                    VkPipelineShaderStageCreateInfo stage{};
+                    stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+                    stage.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+                    stage.module = module;
+                    stage.pName = entryPointNames.back().c_str();
+
+                    VkRayTracingShaderGroupCreateInfoKHR group{};
+                    group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+                    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+                    group.generalShader = groupIdx;
+                    group.closestHitShader = VK_SHADER_UNUSED_KHR;
+                    group.anyHitShader = VK_SHADER_UNUSED_KHR;
+                    group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+                    shaderStages.push_back(stage);
+                    shaderGroups.push_back(group);
+                    break;
+                }
+
+                case ShaderPipelineStage::RayMiss: {
+                    if (prevStage != ShaderPipelineStage::RayGen && prevStage != ShaderPipelineStage::RayMiss) {
+                        throw std::runtime_error("Invalid shader stage order");
+                    }
+                    missEntryCount++;
+
+                    auto [module, entryPoint] = createShaderModule(shader);
+                    entryPointNames.push_back(entryPoint);
+
+                    VkPipelineShaderStageCreateInfo stage{};
+                    stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+                    stage.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+                    stage.module = module;
+                    stage.pName = entryPointNames.back().c_str();
+
+                    VkRayTracingShaderGroupCreateInfoKHR group{};
+                    group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+                    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+                    group.generalShader = groupIdx;
+                    group.closestHitShader = VK_SHADER_UNUSED_KHR;
+                    group.anyHitShader = VK_SHADER_UNUSED_KHR;
+                    group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+                    shaderStages.push_back(stage);
+                    shaderGroups.push_back(group);
+                    break;
+                }
+
+                case ShaderPipelineStage::RayClosestHit: {
+                    if (prevStage != ShaderPipelineStage::RayMiss && prevStage != ShaderPipelineStage::RayClosestHit) {
+                        throw std::runtime_error("Invalid shader stage order");
+                    }
+                    hitEntryCount++;
+
+                    auto [module, entryPoint] = createShaderModule(shader);
+                    entryPointNames.push_back(entryPoint);
+
+                    VkPipelineShaderStageCreateInfo stage{};
+                    stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+                    stage.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+                    stage.module = module;
+                    stage.pName = entryPointNames.back().c_str();
+
+                    VkRayTracingShaderGroupCreateInfoKHR group{};
+                    group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+                    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+                    group.generalShader = VK_SHADER_UNUSED_KHR;
+                    group.closestHitShader = groupIdx;
+                    group.anyHitShader = VK_SHADER_UNUSED_KHR;
+                    group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+                    shaderStages.push_back(stage);
+                    shaderGroups.push_back(group);
+                    break;
+                }
+
+                default:
+                    throw std::runtime_error("Unimplemented shader stage");
+            }
+
+            prevStage = shader.Desc.Stage;
+        }
+
+        if (raygenEntryCount == 0) {
+            throw std::runtime_error("Ray tracing pipeline must have at least one raygen shader");
+        }
+        if (missEntryCount == 0) {
+            throw std::runtime_error("Ray tracing pipeline must have at least one miss shader");
+        }
+
+        VkRayTracingPipelineCreateInfoKHR pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+        pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+        pipelineInfo.pStages = shaderStages.data();
+        pipelineInfo.groupCount = static_cast<uint32_t>(shaderGroups.size());
+        pipelineInfo.pGroups = shaderGroups.data();
+        pipelineInfo.maxPipelineRayRecursionDepth = desc.MaxPipelineRayRecursionDepth;
+        pipelineInfo.layout = pipelineLayout;
+
+        VkPipeline pipeline;
+        result = device->RayTracingPipelineExt.vkCreateRayTracingPipelinesKHR(
+            device->Raw,
+            VK_NULL_HANDLE,
+            VK_NULL_HANDLE,
+            1,
+            &pipelineInfo,
+            nullptr,
+            &pipeline
+        );
+
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create ray tracing pipeline");
+        }
+
+        std::vector<VkDescriptorPoolSize> descriptorPoolSizes;
+        for (const auto& bindings : setLayoutInfo) {
+            for (const auto& [binding, type] : bindings) {
+                auto it = std::find_if(descriptorPoolSizes.begin(), descriptorPoolSizes.end(),
+                    [type](const VkDescriptorPoolSize& dps) { return dps.type == type; });
+
+                if (it != descriptorPoolSizes.end()) {
+                    it->descriptorCount += 1;
+                } else {
+                    descriptorPoolSizes.push_back(VkDescriptorPoolSize{
+                        .type = type,
+                        .descriptorCount = 1
+                    });
+                }
+            }
+        }
+
+        auto sbt = device->CreateRayTracingShaderTable(
+            RayTracingShaderTableDesc{
+                .RaygenEntryCount = raygenEntryCount,
+                .HitEntryCount = hitEntryCount,
+                .MissEntryCount = missEntryCount
+            },
+            pipeline
+        );
+
+        auto rtPipeline = std::make_shared<RayTracingPipeline>();
+        rtPipeline->Common.PipelineLayout = pipelineLayout;
+        rtPipeline->Common.Pipeline = pipeline;
+        rtPipeline->Common.SetLayoutInfo = setLayoutInfo;
+        rtPipeline->Common.DescriptorPoolSizes = descriptorPoolSizes;
+        rtPipeline->Common.DescriptorSetLayouts = descriptorSetLayouts;
+        rtPipeline->Common.PipelineBindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+        rtPipeline->Sbt = sbt;
+
+        return rtPipeline;
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Failed to create ray tracing pipeline: ") + e.what());
+    }
+}
+
+} // namespace tekki::backend::vulkan

@@ -1,4 +1,3 @@
-```cpp
 #pragma once
 
 #include <vulkan/vulkan.h>
@@ -315,4 +314,106 @@ inline AccessInfo GetAccessInfo(vk_sync::AccessType accessType) {
             };
         case vk_sync::AccessType::DepthStencilAttachmentWrite:
             return AccessInfo{
-                .StageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+                .StageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                .AccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+            };
+        case vk_sync::AccessType::DepthAttachmentWriteStencilReadOnly:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                .AccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL
+            };
+        case vk_sync::AccessType::StencilAttachmentWriteDepthReadOnly:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                .AccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL
+            };
+        case vk_sync::AccessType::ComputeShaderWrite:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                .AccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_GENERAL
+            };
+        case vk_sync::AccessType::AnyShaderWrite:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                .AccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_GENERAL
+            };
+        case vk_sync::AccessType::TransferWrite:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .AccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+            };
+        case vk_sync::AccessType::HostWrite:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_HOST_BIT,
+                .AccessMask = VK_ACCESS_HOST_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_GENERAL
+            };
+        case vk_sync::AccessType::ColorAttachmentReadWrite:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .AccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            };
+        case vk_sync::AccessType::General:
+            return AccessInfo{
+                .StageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                .AccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                .ImageLayout = VK_IMAGE_LAYOUT_GENERAL
+            };
+        default:
+            return AccessInfo{
+                .StageMask = 0,
+                .AccessMask = 0,
+                .ImageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+            };
+    }
+}
+
+inline VkImageAspectFlags ImageAspectMaskFromFormat(VkFormat format) {
+    switch (format) {
+        case VK_FORMAT_D16_UNORM:
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+        case VK_FORMAT_D32_SFLOAT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+        case VK_FORMAT_S8_UINT:
+            return VK_IMAGE_ASPECT_STENCIL_BIT;
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        default:
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+}
+
+inline std::optional<VkImageAspectFlags> ImageAspectMaskFromAccessTypeAndFormat(
+    vk_sync::AccessType accessType,
+    VkFormat format) {
+    VkImageLayout imageLayout = GetAccessInfo(accessType).ImageLayout;
+
+    switch (imageLayout) {
+        case VK_IMAGE_LAYOUT_GENERAL:
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+        case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL:
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+            return ImageAspectMaskFromFormat(format);
+        default:
+            return std::nullopt;
+    }
+}
+
+} // namespace tekki::backend::vulkan

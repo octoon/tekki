@@ -6,8 +6,10 @@
 #include <cstring>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
-#include <ash/ash.hpp>
 #include "tekki/core/Result.h"
+
+// Vulkan extension function pointers
+// In Rust, ash provides these, but in C++ we load them manually
 
 namespace tekki::backend::vulkan {
 
@@ -32,18 +34,17 @@ private:
 class Instance {
 public:
     static DeviceBuilder Builder();
-    
-    ash::Entry GetEntry() const { return entry; }
+
     VkInstance GetRaw() const { return raw; }
 
 private:
     Instance() = default;
-    
+
     static Instance Create(const DeviceBuilder& builder);
-    
+
     static std::vector<const char*> ExtensionNames(const DeviceBuilder& builder);
     static std::vector<const char*> LayerNames(const DeviceBuilder& builder);
-    
+
     static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
         VkDebugReportFlagsEXT flags,
         VkDebugReportObjectTypeEXT objType,
@@ -54,12 +55,15 @@ private:
         const char* message,
         void* userData);
 
-    ash::Entry entry;
-    VkInstance raw;
+    VkInstance raw = VK_NULL_HANDLE;
     VkDebugReportCallbackEXT debugCallback = VK_NULL_HANDLE;
-    std::unique_ptr<ash::extensions::ext::DebugReport> debugLoader;
-    std::unique_ptr<ash::extensions::ext::DebugUtils> debugUtils;
-    
+
+    // Extension function pointers (replacing ash::extensions)
+    PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = nullptr;
+    PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT = nullptr;
+    PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = nullptr;
+    PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = nullptr;
+
     friend class DeviceBuilder;
 };
 

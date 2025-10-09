@@ -1,4 +1,3 @@
-```cpp
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/backend/vulkan/device.h"
 #include "tekki/backend/vulkan/image.h"
@@ -600,4 +599,181 @@ RasterPipeline CreateRasterPipeline(
     };
 
     VkPipelineViewportStateCreateInfo viewport_state_info{
-        .sType = V
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .viewportCount = 1,
+        .pViewports = nullptr,
+        .scissorCount = 1,
+        .pScissors = nullptr
+    };
+
+    VkPipelineRasterizationStateCreateInfo rasterization_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = desc.FaceCull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasConstantFactor = 0.0f,
+        .depthBiasClamp = 0.0f,
+        .depthBiasSlopeFactor = 0.0f,
+        .lineWidth = 1.0f
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisample_state_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE,
+        .minSampleShading = 0.0f,
+        .pSampleMask = nullptr,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable = VK_FALSE
+    };
+
+    VkStencilOpState noop_stencil_state{
+        .failOp = VK_STENCIL_OP_KEEP,
+        .passOp = VK_STENCIL_OP_KEEP,
+        .depthFailOp = VK_STENCIL_OP_KEEP,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .compareMask = 0,
+        .writeMask = 0,
+        .reference = 0
+    };
+
+    VkPipelineDepthStencilStateCreateInfo depth_state_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = desc.DepthWrite ? VK_TRUE : VK_FALSE,
+        .depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+        .front = noop_stencil_state,
+        .back = noop_stencil_state,
+        .minDepthBounds = 0.0f,
+        .maxDepthBounds = 1.0f
+    };
+
+    size_t color_attachment_count = desc.RenderPass->FramebufferCache.ColorAttachmentCount;
+
+    std::vector<VkPipelineColorBlendAttachmentState> color_blend_attachment_states(
+        color_attachment_count,
+        VkPipelineColorBlendAttachmentState{
+            .blendEnable = VK_FALSE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+            .colorBlendOp = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp = VK_BLEND_OP_ADD,
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+        }
+    );
+
+    VkPipelineColorBlendStateCreateInfo color_blend_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_NO_OP,
+        .attachmentCount = static_cast<uint32_t>(color_blend_attachment_states.size()),
+        .pAttachments = color_blend_attachment_states.data(),
+        .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}
+    };
+
+    std::array<VkDynamicState, 2> dynamic_state = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamic_state_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .dynamicStateCount = static_cast<uint32_t>(dynamic_state.size()),
+        .pDynamicStates = dynamic_state.data()
+    };
+
+    VkGraphicsPipelineCreateInfo graphic_pipeline_info{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stageCount = static_cast<uint32_t>(shader_stage_create_infos.size()),
+        .pStages = shader_stage_create_infos.data(),
+        .pVertexInputState = &vertex_input_state_info,
+        .pInputAssemblyState = &vertex_input_assembly_state_info,
+        .pTessellationState = nullptr,
+        .pViewportState = &viewport_state_info,
+        .pRasterizationState = &rasterization_info,
+        .pMultisampleState = &multisample_state_info,
+        .pDepthStencilState = &depth_state_info,
+        .pColorBlendState = &color_blend_state,
+        .pDynamicState = &dynamic_state_info,
+        .layout = pipeline_layout,
+        .renderPass = desc.RenderPass->Raw,
+        .subpass = 0,
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = -1
+    };
+
+    VkPipeline pipeline;
+    result = vkCreateGraphicsPipelines(
+        vk_device,
+        VK_NULL_HANDLE,
+        1,
+        &graphic_pipeline_info,
+        nullptr,
+        &pipeline
+    );
+
+    if (result != VK_SUCCESS) {
+        for (auto module : shader_modules) {
+            vkDestroyShaderModule(vk_device, module, nullptr);
+        }
+        vkDestroyPipelineLayout(vk_device, pipeline_layout, nullptr);
+        throw std::runtime_error("Unable to create graphics pipeline");
+    }
+
+    // Clean up shader modules
+    for (auto module : shader_modules) {
+        vkDestroyShaderModule(vk_device, module, nullptr);
+    }
+
+    std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
+    for (const auto& bindings : set_layout_info) {
+        for (const auto& [_, type] : bindings) {
+            auto it = std::find_if(descriptor_pool_sizes.begin(), descriptor_pool_sizes.end(),
+                [type](const VkDescriptorPoolSize& dps) { return dps.type == type; });
+
+            if (it != descriptor_pool_sizes.end()) {
+                it->descriptorCount += 1;
+            } else {
+                descriptor_pool_sizes.push_back(VkDescriptorPoolSize{
+                    .type = type,
+                    .descriptorCount = 1
+                });
+            }
+        }
+    }
+
+    return RasterPipeline{
+        .Common = ShaderPipelineCommon{
+            .PipelineLayout = pipeline_layout,
+            .Pipeline = pipeline,
+            .SetLayoutInfo = set_layout_info,
+            .DescriptorPoolSizes = descriptor_pool_sizes,
+            .DescriptorSetLayouts = descriptor_set_layouts,
+            .PipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS
+        }
+    };
+}
+
+} // namespace tekki::backend::vulkan

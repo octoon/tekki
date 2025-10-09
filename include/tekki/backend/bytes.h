@@ -3,6 +3,8 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <glm/glm.hpp>
 
 namespace tekki::backend {

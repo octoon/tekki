@@ -1,4 +1,3 @@
-```cpp
 #pragma once
 
 #include <memory>
@@ -135,7 +134,6 @@ public:
 };
 
 } // namespace tekki::backend
-```
 
 namespace std {
     template<>
