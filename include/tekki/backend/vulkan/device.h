@@ -136,6 +136,10 @@ public:
                                                        const glm::uvec2& target_resolution);
     bool dlss_available() const { return dlss_available_; }
 
+    // Crash marker tracking (for debugging device lost errors)
+    void record_crash_marker(const CommandBuffer& cb, const std::string& name);
+    void report_error(const std::exception& err);
+
 private:
     Device() = default;
 
@@ -154,6 +158,18 @@ private:
 
     std::unique_ptr<CommandBuffer> setup_cb_;
     std::shared_ptr<Buffer> crash_tracking_buffer_;
+
+    // Crash marker tracking
+    struct CrashMarkerNames
+    {
+        uint32_t next_idx{0};
+        std::unordered_map<uint32_t, std::pair<uint32_t, std::string>> names;
+
+        uint32_t insert_name(const std::string& name);
+        std::optional<std::string> get_name(uint32_t marker) const;
+    };
+    mutable std::mutex crash_marker_mutex_;
+    CrashMarkerNames crash_marker_names_;
 
     // Ray tracing extensions
     vk::DispatchLoaderDynamic acceleration_structure_ext_;

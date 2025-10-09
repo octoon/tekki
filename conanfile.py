@@ -23,11 +23,13 @@ class TekkiRecipe(ConanFile):
     options = {
         "with_dlss": [True, False],
         "with_validation": [True, False],
+        "build_tests": [True, False],
     }
 
     default_options = {
         "with_dlss": False,
         "with_validation": True,
+        "build_tests": True,
     }
 
     def requirements(self):
@@ -74,6 +76,8 @@ class TekkiRecipe(ConanFile):
 
     def build_requirements(self):
         self.tool_requires("cmake/3.28.1")
+        if self.options.build_tests:
+            self.test_requires("catch2/3.5.2")
 
     def layout(self):
         cmake_layout(self)
@@ -84,6 +88,7 @@ class TekkiRecipe(ConanFile):
         tc = CMakeToolchain(self)
         tc.variables["TEKKI_WITH_DLSS"] = self.options.with_dlss
         tc.variables["TEKKI_WITH_VALIDATION"] = self.options.with_validation
+        tc.variables["TEKKI_BUILD_TESTS"] = self.options.build_tests
         tc.generate()
 
     def build(self):

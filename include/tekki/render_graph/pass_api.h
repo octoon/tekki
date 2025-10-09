@@ -17,6 +17,51 @@ namespace tekki::render_graph
 
 // Forward declarations
 class RenderPassApi;
+class Device;
+class CommandBuffer;
+class ComputePipeline;
+class RasterPipeline;
+class RayTracingPipeline;
+class DynamicConstants;
+class RenderPass;
+struct ShaderPipelineCommon;
+struct ImageViewDesc;
+
+// Render pass binding types (defined early to avoid forward declaration issues)
+struct RenderPassImageBinding
+{
+    GraphRawResourceHandle handle;
+    ImageViewDesc view_desc;
+    vk::ImageLayout image_layout;
+};
+
+struct RenderPassBufferBinding
+{
+    GraphRawResourceHandle handle;
+};
+
+struct RenderPassRayTracingAccelerationBinding
+{
+    GraphRawResourceHandle handle;
+};
+
+struct RenderPassBinding
+{
+    enum class Type
+    {
+        Image,
+        ImageArray,
+        Buffer,
+        RayTracingAcceleration,
+        DynamicConstants,
+        DynamicConstantsStorageBuffer
+    };
+
+    Type type;
+    std::variant<RenderPassImageBinding, std::vector<RenderPassImageBinding>, RenderPassBufferBinding,
+                 RenderPassRayTracingAccelerationBinding, uint32_t, uint32_t>
+        data;
+};
 
 // Descriptor set binding types
 struct DescriptorSetBinding
@@ -144,42 +189,6 @@ public:
 
     void trace_rays(std::array<uint32_t, 3> threads);
     void trace_rays_indirect(Ref<BufferResource, GpuSrv> args_buffer, uint64_t args_buffer_offset);
-};
-
-// Render pass binding types
-struct RenderPassImageBinding
-{
-    GraphRawResourceHandle handle;
-    ImageViewDesc view_desc;
-    vk::ImageLayout image_layout;
-};
-
-struct RenderPassBufferBinding
-{
-    GraphRawResourceHandle handle;
-};
-
-struct RenderPassRayTracingAccelerationBinding
-{
-    GraphRawResourceHandle handle;
-};
-
-struct RenderPassBinding
-{
-    enum class Type
-    {
-        Image,
-        ImageArray,
-        Buffer,
-        RayTracingAcceleration,
-        DynamicConstants,
-        DynamicConstantsStorageBuffer
-    };
-
-    Type type;
-    std::variant<RenderPassImageBinding, std::vector<RenderPassImageBinding>, RenderPassBufferBinding,
-                 RenderPassRayTracingAccelerationBinding, uint32_t, uint32_t>
-        data;
 };
 
 // Bind trait for resource references

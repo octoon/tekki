@@ -112,6 +112,24 @@ cmake --build . --config Release
 
 若在持续翻译过程中开发调试，请启用 `-DCMAKE_BUILD_TYPE=Debug` 并设置 `TEKKI_WITH_VALIDATION=ON`，以保留 kajiya 在开发模式下大量的验证流程。
 
+### 运行测试
+
+tekki 使用 Catch2 框架进行单元测试。测试默认启用，可通过 CMake 选项控制：
+
+```bash
+# 构建并运行所有测试
+cd build
+ctest --output-on-failure
+
+# 或使用自定义目标
+cmake --build . --target run-all-tests
+
+# 禁用测试构建
+cmake .. -DTEKKI_BUILD_TESTS=OFF
+```
+
+详细的测试文档请参见 `docs/TESTING.md`。
+
 ## 使用说明
 
 ```bash
@@ -133,6 +151,7 @@ cmake --build . --config Release
 ## 文档
 
 - `docs/TRANSLATION.md` —— 翻译进度与指南，列出原始 Rust 文件对应关系。
+- `docs/TESTING.md` —— 单元测试指南，包含测试运行和编写说明。
 - `docs/DEPENDENCIES.md` —— Rust crate 与 C++ 依赖映射及说明。
 - `docs/DEVELOPMENT.md` —— 开发环境配置、代码规范与仓库结构。
 

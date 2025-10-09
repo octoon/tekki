@@ -14,7 +14,7 @@ std::shared_ptr<vulkan::Image> BrdfFgLutComputer::create(vulkan::Device* device)
 
 void BrdfFgLutComputer::compute(
     render_graph::RenderGraph& rg,
-    render_graph::Handle<vulkan::Image>& img
+    const render_graph::Handle<vulkan::Image>& img
 ) {
     auto pass = rg.add_pass("brdf_fg lut");
 
@@ -57,7 +57,7 @@ std::shared_ptr<vulkan::Image> BezoldBruckeLutComputer::create(vulkan::Device* d
 
 void BezoldBruckeLutComputer::compute(
     render_graph::RenderGraph& rg,
-    render_graph::Handle<vulkan::Image>& img
+    const render_graph::Handle<vulkan::Image>& img
 ) {
     auto pass = rg.add_pass("bezold_brucke lut");
 

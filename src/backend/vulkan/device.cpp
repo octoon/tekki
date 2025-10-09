@@ -6,10 +6,12 @@
 
 #include "../../include/tekki/backend/vulkan/device.h"
 
+#include <optional>
 #include <set>
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan.hpp>
 
+#include "../../include/tekki/backend/error.h"
 #include "../../include/tekki/backend/vulkan/allocator.h"
 
 namespace tekki::backend::vulkan
@@ -221,14 +223,14 @@ std::shared_ptr<Device> Device::create(const std::shared_ptr<PhysicalDevice>& pd
         Queue{.raw = device->device_.getQueue(universal_queue_family->index, 0), .family = *universal_queue_family};
 
     // Create allocator
-    // TODO: Initialize VulkanAllocator
-    // device->global_allocator_ = std::make_shared<VulkanAllocator>(...);
+    device->global_allocator_ =
+        VulkanAllocator::Create(pdevice->instance(), pdevice, device->device_);
 
     // Create frames
     for (size_t i = 0; i < FRAME_COUNT; ++i)
     {
-        // TODO: Initialize DeviceFrame
-        // device->frames_[i] = std::make_shared<DeviceFrame>(...);
+        device->frames_[i] = std::make_shared<DeviceFrame>(pdevice, device->device_, *device->global_allocator_,
+                                                            universal_queue_family.value());
     }
 
     // Create samplers
@@ -281,6 +283,74 @@ Device::~Device()
 
         device_.destroy();
     }
+}
+
+std::shared_ptr<Buffer> Device::create_buffer_impl(vk::Device device, VulkanAllocator& allocator,
+                                                   const BufferDesc& desc, const std::string& name)
+{
+    // Create buffer
+    vk::BufferCreateInfo buffer_info{
+        .size = desc.size, .usage = desc.usage, .sharingMode = vk::SharingMode::eExclusive};
+
+    vk::Buffer buffer = device.createBuffer(buffer_info);
+
+    // Get memory requirements
+    vk::MemoryRequirements requirements = device.getBufferMemoryRequirements(buffer);
+
+    if (desc.alignment.has_value())
+    {
+        requirements.alignment = std::max(requirements.alignment, desc.alignment.value());
+    }
+
+    // Handle shader binding table alignment quirk
+    if (desc.usage & vk::BufferUsageFlagBits::eShaderBindingTableKHR)
+    {
+        // AMD requires at least 64 byte alignment
+        requirements.alignment = std::max(requirements.alignment, static_cast<vk::DeviceSize>(64));
+    }
+
+    // Allocate memory
+    VmaAllocationCreateInfo alloc_info{};
+    alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+    switch (desc.memory_location)
+    {
+    case MemoryLocation::GpuOnly:
+        alloc_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        alloc_info.requiredFlags = 0;
+        break;
+    case MemoryLocation::CpuToGpu:
+        alloc_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        break;
+    case MemoryLocation::GpuToCpu:
+        alloc_info.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
+        alloc_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        break;
+    }
+
+    VmaAllocation allocation;
+    VkResult result = vmaAllocateMemoryForBuffer(allocator.raw(), buffer, &alloc_info, &allocation, nullptr);
+
+    if (result != VK_SUCCESS)
+    {
+        device.destroyBuffer(buffer);
+        throw AllocationError(name, "vmaAllocateMemoryForBuffer failed");
+    }
+
+    // Bind memory
+    VmaAllocationInfo allocation_info;
+    vmaGetAllocationInfo(allocator.raw(), allocation, &allocation_info);
+
+    result = vkBindBufferMemory(device, buffer, allocation_info.deviceMemory, allocation_info.offset);
+    if (result != VK_SUCCESS)
+    {
+        vmaFreeMemory(allocator.raw(), allocation);
+        device.destroyBuffer(buffer);
+        throw VulkanError(static_cast<vk::Result>(result), "vkBindBufferMemory");
+    }
+
+    return std::make_shared<Buffer>(buffer, desc, allocation, allocator.raw());
 }
 
 std::unordered_map<SamplerDesc, vk::Sampler, SamplerDescHash> Device::create_samplers(vk::Device device)
@@ -346,30 +416,108 @@ uint32_t Device::max_bindless_descriptor_count() const
 // TODO: Implement remaining methods
 std::shared_ptr<DeviceFrame> Device::begin_frame()
 {
-    // TODO: Implement frame begin logic
-    return frames_[0];
+    auto& frame = frames_[0];
+
+    // Wait for the GPU to be done with the previously submitted frame
+    std::vector<vk::Fence> fences = {frame->main_command_buffer.submit_done_fence(),
+                                     frame->presentation_command_buffer.submit_done_fence()};
+
+    auto result = device_.waitForFences(fences, VK_TRUE, std::numeric_limits<uint64_t>::max());
+    if (result != vk::Result::eSuccess)
+    {
+        throw VulkanError(result, "waitForFences in begin_frame");
+    }
+
+    // Release pending resources
+    {
+        std::lock_guard<std::mutex> lock(frame->pending_resource_releases_mutex);
+        frame->pending_resource_releases.release_all(device_);
+    }
+
+    return frame;
 }
 
 void Device::finish_frame(const std::shared_ptr<DeviceFrame>& frame)
 {
-    // TODO: Implement frame finish logic
+    // Swap frames for double buffering
+    std::swap(frames_[0], frames_[1]);
 }
 
 void Device::with_setup_cb(std::function<void(vk::CommandBuffer)> callback)
 {
-    // TODO: Implement setup command buffer logic
+    if (!setup_cb_)
+    {
+        throw std::runtime_error("Setup command buffer not initialized");
+    }
+
+    // Begin command buffer
+    vk::CommandBufferBeginInfo begin_info{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
+
+    setup_cb_->raw().begin(begin_info);
+
+    // Execute callback
+    callback(setup_cb_->raw());
+
+    // End command buffer
+    setup_cb_->raw().end();
+
+    // Submit to queue
+    vk::SubmitInfo submit_info{.commandBufferCount = 1, .pCommandBuffers = &setup_cb_->raw()};
+
+    universal_queue_.raw.submit(1, &submit_info, nullptr);
+
+    // Wait for completion
+    device_.waitIdle();
 }
 
 std::shared_ptr<Buffer> Device::create_buffer(const BufferDesc& desc, const std::string& name,
                                               const std::vector<uint8_t>* initial_data)
 {
-    // TODO: Implement buffer creation
-    return nullptr;
+    BufferDesc actual_desc = desc;
+
+    if (initial_data)
+    {
+        actual_desc.usage |= vk::BufferUsageFlagBits::eTransferDst;
+    }
+
+    auto buffer = create_buffer_impl(device_, *global_allocator_, actual_desc, name);
+
+    if (initial_data && !initial_data->empty())
+    {
+        // Create staging buffer
+        BufferDesc staging_desc = BufferDesc::new_cpu_to_gpu(actual_desc.size, vk::BufferUsageFlagBits::eTransferSrc);
+
+        auto staging_buffer = create_buffer_impl(device_, *global_allocator_, staging_desc, name + " (staging)");
+
+        // Copy data to staging buffer
+        void* mapped = staging_buffer->mapped_data();
+        if (!mapped)
+        {
+            throw std::runtime_error("Failed to map staging buffer");
+        }
+
+        std::memcpy(mapped, initial_data->data(), initial_data->size());
+
+        // Copy from staging to final buffer
+        with_setup_cb([&](vk::CommandBuffer cb)
+                      {
+                          vk::BufferCopy copy_region{.srcOffset = 0, .dstOffset = 0, .size = actual_desc.size};
+                          cb.copyBuffer(staging_buffer->raw(), buffer->raw(), 1, &copy_region);
+                      });
+
+        // Staging buffer will be automatically destroyed
+    }
+
+    return buffer;
 }
 
 void Device::immediate_destroy_buffer(const std::shared_ptr<Buffer>& buffer)
 {
-    // TODO: Implement buffer destruction
+    if (buffer)
+    {
+        device_.destroyBuffer(buffer->raw());
+        vmaFreeMemory(global_allocator_->raw(), buffer->allocation());
+    }
 }
 
 std::shared_ptr<DlssRenderer> Device::create_dlss_renderer(const glm::uvec2& input_resolution,
@@ -393,6 +541,64 @@ std::shared_ptr<DlssRenderer> Device::create_dlss_renderer(const glm::uvec2& inp
         spdlog::error("Failed to create DLSS renderer: {}", e.what());
         return nullptr;
     }
+}
+
+// Crash marker tracking implementation
+uint32_t Device::CrashMarkerNames::insert_name(const std::string& name)
+{
+    const uint32_t idx = next_idx;
+    const uint32_t small_idx = idx % 4096;
+
+    next_idx = (next_idx + 1);
+    names[small_idx] = {idx, name};
+
+    return idx;
+}
+
+std::optional<std::string> Device::CrashMarkerNames::get_name(uint32_t marker) const
+{
+    const uint32_t small_idx = marker % 4096;
+    auto it = names.find(small_idx);
+    if (it != names.end() && it->second.first == marker)
+    {
+        return it->second.second;
+    }
+    return std::nullopt;
+}
+
+void Device::record_crash_marker(const CommandBuffer& cb, const std::string& name)
+{
+    if (!crash_tracking_buffer_)
+    {
+        return; // Crash tracking not initialized
+    }
+
+    std::lock_guard<std::mutex> lock(crash_marker_mutex_);
+    const uint32_t idx = crash_marker_names_.insert_name(name);
+
+    // Write the marker index to the crash tracking buffer
+    device_.cmdFillBuffer(cb.raw(), crash_tracking_buffer_->raw, 0, 4, idx);
+}
+
+void Device::report_error(const std::exception& err)
+{
+    // Check if this is a device lost error
+    const auto* vulkan_err = dynamic_cast<const tekki::backend::VulkanError*>(&err);
+    if (vulkan_err && vulkan_err->GetResult() == vk::Result::eErrorDeviceLost)
+    {
+        if (crash_tracking_buffer_)
+        {
+            // Read the last marker written to the crash tracking buffer
+            // TODO: This requires mapped memory access - need to implement
+            std::lock_guard<std::mutex> lock(crash_marker_mutex_);
+
+            // For now, just log a generic message
+            spdlog::error("The GPU device has been lost. This is usually due to an infinite loop in a shader.");
+        }
+    }
+
+    // Log the error
+    spdlog::error("Backend error: {}", err.what());
 }
 
 } // namespace tekki::backend::vulkan

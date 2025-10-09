@@ -5,6 +5,18 @@
 #include <fstream>
 #include <cstring>
 
+// Image loading libraries
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+// OpenEXR libraries
+#include <OpenEXR/ImfRgbaFile.h>
+#include <OpenEXR/ImfArray.h>
+
+// Half precision library
+#include <half.hpp>
+using half_float::half;
+
 namespace tekki::renderer {
 
 // ImageRgba16f implementation
@@ -142,17 +154,97 @@ std::optional<render_graph::ReadOnlyHandle<vulkan::Image>> IblRenderer::render(
 // Image loading helper functions
 
 ImageRgba16f load_hdr(const std::string& path) {
-    // TODO: Implement HDR loading using stb_image or similar
-    // For now, return a placeholder
-    TEKKI_LOG_WARN("HDR loading not yet implemented, returning placeholder");
-    return ImageRgba16f(1, 1);
+    TEKKI_LOG_INFO("Loading HDR file: {}", path);
+
+    // Use stb_image to load HDR files
+    int width, height, channels;
+    float* data = stbi_loadf(path.c_str(), &width, &height, &channels, 4); // Force 4 channels (RGBA)
+
+    if (!data) {
+        TEKKI_LOG_ERROR("Failed to load HDR file: {}", stbi_failure_reason());
+        return ImageRgba16f(1, 1);
+    }
+
+    TEKKI_LOG_INFO("HDR image loaded: {}x{} with {} channels", width, height, channels);
+
+    // Convert from float32 to float16
+    ImageRgba16f result(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            size_t src_idx = ((y * width + x) * 4);
+
+            // Convert float32 to float16 using half library
+            half r_half = half(data[src_idx + 0]);
+            half g_half = half(data[src_idx + 1]);
+            half b_half = half(data[src_idx + 2]);
+            half a_half = half(data[src_idx + 3]);
+
+            std::array<uint16_t, 4> rgba = {
+                reinterpret_cast<uint16_t&>(r_half),
+                reinterpret_cast<uint16_t&>(g_half),
+                reinterpret_cast<uint16_t&>(b_half),
+                reinterpret_cast<uint16_t&>(a_half)
+            };
+
+            result.put_pixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y), rgba);
+        }
+    }
+
+    stbi_image_free(data);
+    TEKKI_LOG_INFO("HDR loading completed successfully");
+    return result;
 }
 
 ImageRgba16f load_exr(const std::string& path) {
-    // TODO: Implement EXR loading using OpenEXR or tinyexr
-    // For now, return a placeholder
-    TEKKI_LOG_WARN("EXR loading not yet implemented, returning placeholder");
-    return ImageRgba16f(1, 1);
+    TEKKI_LOG_INFO("Loading EXR file: {}", path);
+
+    try {
+        // Use OpenEXR to load EXR files
+        Imf::RgbaInputFile file(path.c_str());
+        Imath::Box2i dw = file.dataWindow();
+
+        int width = dw.max.x - dw.min.x + 1;
+        int height = dw.max.y - dw.min.y + 1;
+
+        TEKKI_LOG_INFO("EXR image dimensions: {}x{}", width, height);
+
+        // Allocate temporary buffer for OpenEXR RGBA data
+        std::vector<Imf::Rgba> pixels(width * height);
+
+        // Set frame buffer
+        file.setFrameBuffer(&pixels[0] - dw.min.x - dw.min.y * width, 1, width);
+
+        // Read the image
+        file.readPixels(dw.min.y, dw.max.y);
+
+        // Convert to ImageRgba16f format
+        ImageRgba16f result(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                size_t idx = y * width + x;
+                const Imf::Rgba& pixel = pixels[idx];
+
+                // OpenEXR uses half precision internally, so we can directly use the values
+                std::array<uint16_t, 4> rgba = {
+                    reinterpret_cast<const uint16_t&>(pixel.r),
+                    reinterpret_cast<const uint16_t&>(pixel.g),
+                    reinterpret_cast<const uint16_t&>(pixel.b),
+                    reinterpret_cast<const uint16_t&>(pixel.a)
+                };
+
+                result.put_pixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y), rgba);
+            }
+        }
+
+        TEKKI_LOG_INFO("EXR loading completed successfully");
+        return result;
+
+    } catch (const std::exception& e) {
+        TEKKI_LOG_ERROR("Failed to load EXR file: {}", e.what());
+        return ImageRgba16f(1, 1);
+    }
 }
 
 } // namespace tekki::renderer

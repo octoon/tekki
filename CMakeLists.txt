@@ -19,7 +19,7 @@ endif()
 # Options
 option(TEKKI_WITH_DLSS "Enable DLSS support" OFF)
 option(TEKKI_WITH_VALIDATION "Enable Vulkan validation layers" ON)
-option(TEKKI_BUILD_TESTS "Build tests" OFF)
+option(TEKKI_BUILD_TESTS "Build unit tests" ON)
 
 # Find packages
 find_package(Vulkan REQUIRED)
@@ -40,6 +40,12 @@ find_package(half REQUIRED)
 find_package(TinyGLTF REQUIRED)
 find_package(efsw REQUIRED)
 
+# Testing framework (optional)
+if(TEKKI_BUILD_TESTS)
+    find_package(Catch2 3 REQUIRED)
+    enable_testing()
+endif()
+
 # Global compile options
 if(MSVC)
     add_compile_options(/W4 /WX)
@@ -55,6 +61,11 @@ target_compile_definitions(tekki_compile_options INTERFACE
 
 # Subdirectories
 add_subdirectory(src)
+
+# Tests subdirectory (optional)
+if(TEKKI_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
 
 # Installation
 install(TARGETS tekki-view
