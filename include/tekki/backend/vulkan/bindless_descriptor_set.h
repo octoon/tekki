@@ -45,27 +45,75 @@ inline vk::DescriptorSetLayout create_bindless_descriptor_set_layout(std::shared
         }
     };
 
+    // Binding flags for each binding
+    std::vector<vk::DescriptorBindingFlags> binding_flags = {
+        vk::DescriptorBindingFlagBits::ePartiallyBound,
+        vk::DescriptorBindingFlagBits::ePartiallyBound,
+        vk::DescriptorBindingFlagBits::ePartiallyBound,
+        vk::DescriptorBindingFlagBits::eUpdateAfterBind |
+        vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending |
+        vk::DescriptorBindingFlagBits::ePartiallyBound |
+        vk::DescriptorBindingFlagBits::eVariableDescriptorCount
+    };
+
+    vk::DescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{
+        static_cast<uint32_t>(binding_flags.size()),
+        binding_flags.data()
+    };
+
     vk::DescriptorSetLayoutCreateInfo layout_info{
-        vk::DescriptorSetLayoutCreateFlags{},
+        vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
         static_cast<uint32_t>(bindings.size()),
         bindings.data()
     };
+    layout_info.setPNext(&binding_flags_info);
 
     return device->raw().createDescriptorSetLayout(layout_info);
 }
 
-// Create bindless descriptor set
-inline vk::DescriptorSet create_bindless_descriptor_set(Device* device) {
-    auto layout = create_bindless_descriptor_set_layout(std::shared_ptr<Device>(device, [](auto*){}));
+// Create bindless descriptor set with its own pool
+// Returns both the descriptor set and the pool (pool must be kept alive)
+inline std::pair<vk::DescriptorSet, vk::DescriptorPool> create_bindless_descriptor_set(Device* device) {
+    auto device_shared = std::shared_ptr<Device>(device, [](auto*){});
+    auto layout = create_bindless_descriptor_set_layout(device_shared);
+
+    // Create descriptor pool with UPDATE_AFTER_BIND flag
+    std::vector<vk::DescriptorPoolSize> pool_sizes = {
+        vk::DescriptorPoolSize{
+            vk::DescriptorType::eStorageBuffer,
+            3
+        },
+        vk::DescriptorPoolSize{
+            vk::DescriptorType::eSampledImage,
+            device->max_bindless_descriptor_count()
+        }
+    };
+
+    vk::DescriptorPoolCreateInfo pool_info{
+        vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
+        1,  // max_sets
+        static_cast<uint32_t>(pool_sizes.size()),
+        pool_sizes.data()
+    };
+
+    auto pool = device->raw().createDescriptorPool(pool_info);
+
+    // Allocate descriptor set with variable descriptor count
+    uint32_t variable_desc_count = device->max_bindless_descriptor_count();
+    vk::DescriptorSetVariableDescriptorCountAllocateInfo variable_desc_count_info{
+        1,
+        &variable_desc_count
+    };
 
     vk::DescriptorSetAllocateInfo alloc_info{
-        device->descriptor_pool(),
+        pool,
         1,
         &layout
     };
+    alloc_info.setPNext(&variable_desc_count_info);
 
     auto sets = device->raw().allocateDescriptorSets(alloc_info);
-    return sets[0];
+    return {sets[0], pool};
 }
 
 // Write descriptor set for buffer

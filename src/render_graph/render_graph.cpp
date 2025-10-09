@@ -1,4 +1,7 @@
-#include "../../include/tekki/renderer/renderers/Rendergraph.h"
+#include "tekki/render_graph/render_graph.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/pass_builder.h"
+#include "tekki/render_graph/temporal.h"
 
 namespace tekki::render_graph
 {

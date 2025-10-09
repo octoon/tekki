@@ -119,6 +119,9 @@ public:
 struct ExportedTemporalRenderGraphState
 {
     TemporalRenderGraphState state;
+
+    // Retire temporal state
+    TemporalRenderGraphState retire_temporal(const RetiredRenderGraph& rg) const;
 };
 
 // Temporal render graph
@@ -142,6 +145,10 @@ public:
 
     // Export temporal state
     std::pair<RenderGraph, ExportedTemporalRenderGraphState> export_temporal();
+
+    // Get underlying render graph
+    RenderGraph& get_render_graph() { return rg; }
+    const RenderGraph& get_render_graph() const { return rg; }
 
 private:
     RenderGraph rg;
@@ -172,9 +179,5 @@ public:
     static Handle<BufferResource> get_or_create_temporal(TemporalRenderGraph& self, const TemporalResourceKey& key,
                                                          const BufferDesc& desc);
 };
-
-// Retire temporal state
-TemporalRenderGraphState retire_temporal(const ExportedTemporalRenderGraphState& exported_state,
-                                         const RetiredRenderGraph& rg);
 
 } // namespace tekki::render_graph

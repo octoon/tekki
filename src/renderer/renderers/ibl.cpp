@@ -1,51 +1,158 @@
-#include "../../include/tekki/renderer/renderers/ibl.h"
+#include "../../../include/tekki/renderer/renderers/ibl.h"
+#include "../../../include/tekki/backend/vulkan/shader.h"
+#include "../../../include/tekki/core/log.h"
 
-#include "../../backend/vulkan/shader.h"
-#include "../../include/tekki/renderer/renderers/renderers.h"
+#include <fstream>
+#include <cstring>
 
-namespace tekki::renderer
-{
+namespace tekki::renderer {
 
-IblRenderer::IblRenderer() {}
+// ImageRgba16f implementation
 
-render_graph::Handle<vulkan::Image> IblRenderer::render(render_graph::RenderGraph& rg, const GbufferDepth& gbuffer_depth,
-                                                         const std::array<uint32_t, 2>& output_extent)
-{
-    auto ibl_output = rg.create_image(
-        vulkan::ImageDesc::new_2d(output_extent[0], output_extent[1], vk::Format::eR16G16B16A16Sfloat), "ibl_output");
+ImageRgba16f::ImageRgba16f(uint32_t width, uint32_t height)
+    : size{width, height}, data(width * height * 4, 0) {}
 
-    // IBL computation pass
-    rg.add_pass("ibl_compute",
-                [&](render_graph::PassBuilder& pb)
-                {
-                    pb.reads({gbuffer_depth.geometric_normal, gbuffer_depth.gbuffer, gbuffer_depth.depth});
-                    pb.writes({ibl_output});
-                    pb.executes(
-                        [&](vk::CommandBuffer cmd)
-                        {
-                            // TODO: Implement IBL compute shader
-                            // This would involve:
-                            // 1. Binding IBL compute pipeline
-                            // 2. Setting descriptor sets (G-buffer, depth, environment map)
-                            // 3. Dispatching compute shader
-                            // 4. Image-based lighting computation
-                            // 5. Diffuse and specular environment lighting
-                            // 6. Importance sampling for environment map
+void ImageRgba16f::put_pixel(uint32_t x, uint32_t y, const std::array<uint16_t, 4>& rgba) {
+    size_t offset = ((y * size[0] + x) * 4);
+    std::memcpy(&data[offset], rgba.data(), 4 * sizeof(uint16_t));
+}
 
-                            // For now, clear the output
-                            vk::ClearColorValue clear_color{std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f}};
-                            vk::ImageSubresourceRange range{
-                                .aspectMask = vk::ImageAspectFlagBits::eColor,
-                                .baseMipLevel = 0,
-                                .levelCount = 1,
-                                .baseArrayLayer = 0,
-                                .layerCount = 1
-                            };
-                            cmd.clearColorImage(pb.get_image(ibl_output), vk::ImageLayout::eGeneral, &clear_color, 1, &range);
-                        });
-                });
+// IblRenderer implementation
 
-    return ibl_output;
+void IblRenderer::load_image(const std::string& path) {
+    try {
+        // Determine file type by extension
+        std::string ext;
+        size_t dot_pos = path.find_last_of('.');
+        if (dot_pos != std::string::npos) {
+            ext = path.substr(dot_pos + 1);
+            // Convert to lowercase
+            for (auto& c : ext) {
+                c = std::tolower(c);
+            }
+        }
+
+        if (ext == "exr") {
+            image_ = load_exr(path);
+        } else if (ext == "hdr") {
+            image_ = load_hdr(path);
+        } else {
+            TEKKI_LOG_ERROR("Unsupported IBL image format: {}", ext);
+            return;
+        }
+
+        // Force re-creation of the texture
+        texture_ = nullptr;
+
+        TEKKI_LOG_INFO("Loaded IBL environment map: {}", path);
+    } catch (const std::exception& e) {
+        TEKKI_LOG_ERROR("Failed to load IBL image {}: {}", path, e.what());
+        image_ = std::nullopt;
+    }
+}
+
+void IblRenderer::unload_image() {
+    image_ = std::nullopt;
+    texture_ = nullptr;
+}
+
+std::optional<render_graph::ReadOnlyHandle<vulkan::Image>> IblRenderer::render(
+    render_graph::TemporalRenderGraph& rg
+) {
+    // Create texture from image if needed
+    if (!texture_ && image_.has_value()) {
+        const uint32_t PIXEL_BYTES = 8;  // RGBA16F = 4 channels * 2 bytes
+        auto& img = image_.value();
+
+        auto desc = vulkan::ImageDesc::new_2d(img.size[0], img.size[1], vk::Format::eR16G16B16A16Sfloat)
+            .usage(vk::ImageUsageFlagBits::eSampled);
+
+        std::vector<vulkan::ImageSubResourceData> subresources = {
+            vulkan::ImageSubResourceData{
+                img.data.data(),
+                static_cast<size_t>(img.size[0] * PIXEL_BYTES),
+                static_cast<size_t>(img.size[0] * img.size[1] * PIXEL_BYTES)
+            }
+        };
+
+        texture_ = rg.device()->create_image(desc, "ibl_environment", subresources);
+    }
+
+    if (!texture_) {
+        return std::nullopt;
+    }
+
+    // Create cube map from environment map
+    const uint32_t width = 1024;
+    auto cube_desc = vulkan::ImageDesc::new_cube(width, vk::Format::eR16G16B16A16Sfloat);
+    auto cube_tex = rg.create(cube_desc);
+
+    // Import the texture into render graph
+    auto texture_handle = rg.import(
+        texture_,
+        vulkan::AccessType::AnyShaderReadSampledImageOrUniformTexelBuffer
+    );
+
+    // Create compute pass to generate cube map
+    auto pass = rg.add_pass("ibl cube");
+
+    // Register compute shader
+    auto shader_desc = vulkan::PipelineShaderDesc::builder(vulkan::ShaderPipelineStage::Compute)
+        .hlsl_source("/shaders/ibl/ibl_cube.hlsl")
+        .build();
+
+    auto pipeline = pass.register_compute_pipeline({shader_desc});
+
+    // Register reads and writes
+    auto texture_ref = pass.read(
+        texture_handle,
+        vulkan::AccessType::ComputeShaderReadSampledImageOrUniformTexelBuffer
+    );
+
+    auto view_desc = vulkan::ImageViewDesc::builder()
+        .view_type(vk::ImageViewType::e2DArray)
+        .build();
+
+    auto cube_ref = pass.write_view(
+        cube_tex,
+        view_desc,
+        vulkan::AccessType::ComputeShaderWrite
+    );
+
+    // Dispatch callback
+    pass.dispatch([=](render_graph::PassApi& api) {
+        // Bind pipeline
+        auto bound_pipeline = api.bind_compute_pipeline(
+            pipeline
+                .into_binding()
+                .descriptor_set(0, {
+                    render_graph::RenderPassBinding::Image(texture_ref),
+                    render_graph::RenderPassBinding::Image(cube_ref)
+                })
+                .constants(&width, sizeof(width))
+        );
+
+        // Dispatch for all 6 cube faces
+        api.cb().dispatch(width, width, 6);
+    });
+
+    return render_graph::ReadOnlyHandle<vulkan::Image>(cube_tex);
+}
+
+// Image loading helper functions
+
+ImageRgba16f load_hdr(const std::string& path) {
+    // TODO: Implement HDR loading using stb_image or similar
+    // For now, return a placeholder
+    TEKKI_LOG_WARN("HDR loading not yet implemented, returning placeholder");
+    return ImageRgba16f(1, 1);
+}
+
+ImageRgba16f load_exr(const std::string& path) {
+    // TODO: Implement EXR loading using OpenEXR or tinyexr
+    // For now, return a placeholder
+    TEKKI_LOG_WARN("EXR loading not yet implemented, returning placeholder");
+    return ImageRgba16f(1, 1);
 }
 
 } // namespace tekki::renderer

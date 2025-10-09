@@ -8,6 +8,7 @@
 #include "../../backend/vulkan/shader.h"
 #include "../../backend/vulkan/dynamic_constants.h"
 #include "../renderers/renderers.h"
+#include "../lut_renderers.h"
 
 #include <memory>
 #include <vector>
@@ -209,6 +210,12 @@ public:
     BindlessImageHandle add_image(std::shared_ptr<vulkan::Image> image);
     void remove_image(BindlessImageHandle handle);
 
+    // Image LUT management
+    template<typename LutComputer>
+    void add_image_lut(LutComputer&& computer, uint32_t expected_index);
+
+    void add_image_lut_impl(std::unique_ptr<ComputeImageLut> computer, uint32_t expected_index);
+
     // Rendering
     void render(
         render_graph::RenderGraph& rg,
@@ -256,6 +263,7 @@ private:
     // Core resources
     std::shared_ptr<vulkan::RenderPass> raster_simple_render_pass_;
     vk::DescriptorSet bindless_descriptor_set_;
+    vk::DescriptorPool bindless_descriptor_pool_;
 
     // Mesh and instance data
     std::vector<std::shared_ptr<vulkan::UploadedTriMesh>> meshes_;
@@ -331,5 +339,11 @@ private:
     void update_frame_constants(const CameraMatrices& camera, const std::array<uint32_t, 2>& output_extent);
     void update_instance_transforms();
 };
+
+// Template implementation
+template<typename LutComputer>
+void WorldRenderer::add_image_lut(LutComputer&& computer, uint32_t expected_index) {
+    add_image_lut_impl(std::make_unique<LutComputer>(std::forward<LutComputer>(computer)), expected_index);
+}
 
 } // namespace tekki::renderer::world

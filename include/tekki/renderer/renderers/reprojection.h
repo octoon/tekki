@@ -2,26 +2,18 @@
 
 #include "renderers.h"
 #include "../../render_graph/RenderGraph.h"
+#include "../../render_graph/temporal.h"
 #include "../../backend/vulkan/image.h"
 
 #include <vulkan/vulkan.hpp>
 
 namespace tekki::renderer {
 
-class ReprojectionRenderer {
-public:
-    ReprojectionRenderer();
-
-    render_graph::Handle<vulkan::Image> render(
-        render_graph::TemporalRenderGraph& rg,
-        const GbufferDepth& gbuffer_depth,
-        const render_graph::Handle<vulkan::Image>& velocity,
-        const std::array<uint32_t, 2>& output_extent
-    );
-
-private:
-    // Reprojection state
-    std::shared_ptr<vulkan::Buffer> reprojection_constants_buffer_;
-};
+// Calculate reprojection map for temporal algorithms
+render_graph::Handle<vulkan::Image> calculate_reprojection_map(
+    render_graph::TemporalRenderGraph& rg,
+    const GbufferDepth& gbuffer_depth,
+    const render_graph::Handle<vulkan::Image>& velocity_img
+);
 
 } // namespace tekki::renderer

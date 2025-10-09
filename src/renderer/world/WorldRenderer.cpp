@@ -80,7 +80,9 @@ void WorldRenderer::initialize_default_resources()
         "vertex buffer");
 
     // Create bindless descriptor set
-    bindless_descriptor_set_ = vulkan::create_bindless_descriptor_set(device_.get());
+    auto [descriptor_set, descriptor_pool] = vulkan::create_bindless_descriptor_set(device_.get());
+    bindless_descriptor_set_ = descriptor_set;
+    bindless_descriptor_pool_ = descriptor_pool;
 
     // Create bindless texture sizes buffer
     bindless_texture_sizes_ =
@@ -426,6 +428,20 @@ void WorldRenderer::update_instance_transforms()
     {
         instance.prev_transform = instance.transform;
     }
+}
+
+void WorldRenderer::add_image_lut_impl(std::unique_ptr<ComputeImageLut> computer, uint32_t expected_index)
+{
+    // Store the LUT computer
+    ImageLut lut;
+    lut.computer = std::move(computer);
+
+    // Ensure we have enough space in the vector
+    if (expected_index >= image_luts_.size()) {
+        image_luts_.resize(expected_index + 1);
+    }
+
+    image_luts_[expected_index] = std::move(lut);
 }
 
 } // namespace tekki::renderer::world

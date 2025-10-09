@@ -4,8 +4,11 @@
 // This provides the public interface for the render graph system
 
 #include "graph.h"
+#include "high_level.h"
+#include "image_ops.h"
 #include "pass_api.h"
 #include "pass_builder.h"
+#include "renderer.h"
 #include "resource.h"
 #include "resource_registry.h"
 #include "temporal.h"

@@ -8,19 +8,15 @@
 
 namespace tekki::renderer {
 
-class SkyRenderer {
-public:
-    SkyRenderer();
+// Render sky cube map
+render_graph::Handle<vulkan::Image> render_sky_cube(
+    render_graph::RenderGraph& rg
+);
 
-    render_graph::Handle<vulkan::Image> render(
-        render_graph::RenderGraph& rg,
-        const GbufferDepth& gbuffer_depth,
-        const std::array<uint32_t, 2>& output_extent
-    );
-
-private:
-    // Sky rendering state
-    std::shared_ptr<vulkan::Buffer> sky_constants_buffer_;
-};
+// Convolve cube map for diffuse IBL
+render_graph::Handle<vulkan::Image> convolve_cube(
+    render_graph::RenderGraph& rg,
+    const render_graph::Handle<vulkan::Image>& input
+);
 
 } // namespace tekki::renderer
