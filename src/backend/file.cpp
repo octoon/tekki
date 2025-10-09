@@ -20,6 +20,8 @@ FileWatcher::FileWatcher() {
 }
 
 void FileWatcher::Watch(const std::filesystem::path& path, std::function<void()> callback) {
+    (void)path;     // Suppress unused parameter warning
+    (void)callback; // Suppress unused parameter warning
     // Implementation would depend on the file watching library used
     // This is a placeholder for the actual file watching logic
 }

@@ -1,6 +1,6 @@
 #include "tekki/backend/dynamic_constants.h"
-#include "tekki/backend/Buffer.h"
-#include "tekki/backend/Device.h"
+#include "tekki/backend/vulkan/buffer.h"
+#include "tekki/backend/vulkan/device.h"
 #include <cstddef>
 #include <cstdint>
 #include <vector>

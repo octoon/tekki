@@ -7,7 +7,7 @@
 #include <mutex>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
-#include "gpu_allocator.h"
+#include <tekki/gpu_allocator/gpu_allocator.h>
 
 namespace tekki::backend::vulkan {
 
@@ -24,7 +24,7 @@ enum class ImageType {
 };
 
 struct ImageDesc {
-    ImageType ImageType;
+    ImageType Type;
     VkImageUsageFlags Usage;
     VkImageCreateFlags Flags;
     VkFormat Format;
@@ -38,7 +38,7 @@ struct ImageDesc {
     static ImageDesc New2d(VkFormat format, const glm::u32vec2& extent);
     static ImageDesc New3d(VkFormat format, const glm::u32vec3& extent);
     static ImageDesc NewCube(VkFormat format, uint32_t width);
-    
+
     ImageDesc& WithImageType(ImageType imageType);
     ImageDesc& WithUsage(VkImageUsageFlags usage);
     ImageDesc& WithFlags(VkImageCreateFlags flags);
@@ -89,23 +89,25 @@ struct ImageViewDesc {
     ImageViewDesc();
     ImageViewDesc(const ImageViewDesc& other);
     ImageViewDesc& operator=(const ImageViewDesc& other);
-    
+
     bool operator==(const ImageViewDesc& other) const;
-    
-    struct Builder {
-        Builder();
-        Builder& WithViewType(std::optional<VkImageViewType> viewType);
-        Builder& WithFormat(std::optional<VkFormat> format);
-        Builder& WithAspectMask(VkImageAspectFlags aspectMask);
-        Builder& WithBaseMipLevel(uint32_t baseMipLevel);
-        Builder& WithLevelCount(std::optional<uint32_t> levelCount);
-        ImageViewDesc Build() const;
-        
-    private:
-        ImageViewDesc desc;
-    };
-    
+
+    class Builder;
     static Builder CreateBuilder();
+};
+
+class ImageViewDesc::Builder {
+public:
+    Builder();
+    Builder& WithViewType(std::optional<VkImageViewType> viewType);
+    Builder& WithFormat(std::optional<VkFormat> format);
+    Builder& WithAspectMask(VkImageAspectFlags aspectMask);
+    Builder& WithBaseMipLevel(uint32_t baseMipLevel);
+    Builder& WithLevelCount(std::optional<uint32_t> levelCount);
+    ImageViewDesc Build() const;
+
+private:
+    ImageViewDesc desc;
 };
 
 VkImageViewType ConvertImageTypeToViewType(ImageType imageType);

@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <vulkan/vulkan.h>
-#include <gpu_allocator/gpu_allocator.h>
+#include <tekki/gpu_allocator/gpu_allocator.h>
 #include "device.h"
 
 namespace tekki::backend::vulkan {
@@ -13,7 +13,7 @@ class Buffer {
 public:
     VkBuffer Raw;
     BufferDesc Desc;
-    gpu_allocator::SubAllocation Allocation;
+    gpu_allocator::Allocation Allocation;
 
     uint64_t DeviceAddress(const std::shared_ptr<Device>& device) {
         VkBufferDeviceAddressInfo addressInfo = {};

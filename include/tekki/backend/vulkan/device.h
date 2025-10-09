@@ -10,9 +10,9 @@
 #include <stdexcept>
 #include <glm/glm.hpp>
 #include "vulkan/vulkan.h"
-#include "gpu_allocator.h"
-#include "gpu_profiler.h"
-#include "core/Result.h"
+#include <tekki/gpu_allocator/gpu_allocator.h>
+#include <tekki/gpu_profiler/gpu_profiler.h>
+#include "tekki/core/Result.h"
 #include "vulkan/buffer.h"
 #include "vulkan/physical_device.h"
 #include "vulkan/profiler.h"
@@ -76,8 +76,8 @@ public:
     PendingResourceReleases PendingReleases;
     VkProfilerData ProfilerData;
     
-    DeviceFrame(const PhysicalDevice* pdevice, VkDevice device, 
-                gpu_allocator::VulkanAllocator* globalAllocator, 
+    DeviceFrame(const PhysicalDevice* pdevice, VkDevice device,
+                gpu_allocator::Allocator* globalAllocator,
                 const QueueFamily& queueFamily);
     ~DeviceFrame() = default;
     
@@ -114,7 +114,7 @@ private:
     std::shared_ptr<Instance> instance_;
     Queue universalQueue_;
     std::shared_ptr<std::mutex> globalAllocatorMutex_;
-    std::shared_ptr<gpu_allocator::VulkanAllocator> globalAllocator_;
+    std::shared_ptr<gpu_allocator::Allocator> globalAllocator_;
     std::unordered_map<SamplerDesc, VkSampler, SamplerDescHash> immutableSamplers_;
     std::mutex setupCbMutex_;
     CommandBuffer setupCb_;
@@ -129,7 +129,7 @@ private:
     bool rayTracingEnabled_;
     
     static std::unordered_map<SamplerDesc, VkSampler, SamplerDescHash> CreateSamplers(VkDevice device);
-    static Buffer CreateBufferImpl(VkDevice device, gpu_allocator::VulkanAllocator* allocator, 
+    static Buffer CreateBufferImpl(VkDevice device, gpu_allocator::Allocator* allocator,
                                   const BufferDesc& desc, const std::string& name);
     void ReportError(const std::exception& error) const;
 

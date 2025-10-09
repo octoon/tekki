@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <glm/glm.hpp>
 #include "tekki/core/Result.h"
-#include "tekki/file/LoadFile.h"
+#include "tekki/backend/file.h"
 #include "tekki/shader_compiler/CompiledShader.h"
 
 namespace tekki::backend {

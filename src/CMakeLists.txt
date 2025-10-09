@@ -1,3 +1,25 @@
+# GPU Allocator library
+# TEMPORARILY DISABLED - HAS COMPILATION ERRORS
+# add_library(tekki-gpu-allocator STATIC
+#     gpu_allocator/allocator_base.cpp
+#     gpu_allocator/gpu_allocator.cpp
+# )
+#
+# target_include_directories(tekki-gpu-allocator
+#     PUBLIC
+#         ${CMAKE_CURRENT_SOURCE_DIR}
+#         ${CMAKE_CURRENT_SOURCE_DIR}/../include
+#     PRIVATE
+#         ${CMAKE_CURRENT_SOURCE_DIR}/gpu_allocator
+# )
+#
+# target_link_libraries(tekki-gpu-allocator
+#     PUBLIC
+#         tekki_compile_options
+#         Vulkan::Vulkan
+#         spdlog::spdlog
+# )
+
 # GPU Profiler library
 add_library(tekki-gpu-profiler STATIC
     gpu_profiler/gpu_profiler.cpp
@@ -55,9 +77,9 @@ target_include_directories(tekki-backend
 target_link_libraries(tekki-backend
     PUBLIC
         tekki_compile_options
+        tekki-gpu-allocator
         tekki-gpu-profiler
         Vulkan::Vulkan
-        vulkan-memory-allocator::vulkan-memory-allocator
         spirv-cross-core
         SPIRV-Tools-static
         efsw::efsw

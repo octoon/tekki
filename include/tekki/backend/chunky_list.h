@@ -8,10 +8,13 @@
 namespace tekki::backend {
 
 template<typename T>
+class TempList;
+
+template<typename T>
 class TempListInner {
 public:
     std::vector<T> Payload;
-    std::shared_ptr<class TempList<T>> Next;
+    std::shared_ptr<TempList<T>> Next;
 
     TempListInner() : Payload(), Next(nullptr) {
         Payload.reserve(8);
