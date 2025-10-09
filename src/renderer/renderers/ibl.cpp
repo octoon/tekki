@@ -2,10 +2,37 @@
 #include "../../../include/tekki/backend/vulkan/shader.h"
 #include "../../../include/tekki/core/log.h"
 
-#include <fstream>
+#include <algorithm>
+#include <array>
+#include <cctype>
 #include <cstring>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include <ImfArray.h>
+#include <ImfRgbaFile.h>
+#include <ImathBox.h>
+#include <half/half.hpp>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 namespace tekki::renderer {
+
+namespace {
+
+constexpr float HALF_MAX_VALUE = 65504.0f;
+
+uint16_t float_to_half_bits(float value) {
+    const float clamped = std::clamp(value, -HALF_MAX_VALUE, HALF_MAX_VALUE);
+    const half_float::half half_value(clamped);
+    uint16_t bits{};
+    std::memcpy(&bits, &half_value, sizeof(bits));
+    return bits;
+}
+
+} // namespace
 
 // ImageRgba16f implementation
 
@@ -142,17 +169,77 @@ std::optional<render_graph::ReadOnlyHandle<vulkan::Image>> IblRenderer::render(
 // Image loading helper functions
 
 ImageRgba16f load_hdr(const std::string& path) {
-    // TODO: Implement HDR loading using stb_image or similar
-    // For now, return a placeholder
-    TEKKI_LOG_WARN("HDR loading not yet implemented, returning placeholder");
-    return ImageRgba16f(1, 1);
+    int width = 0;
+    int height = 0;
+    int components = 0;
+
+    stbi_set_flip_vertically_on_load(false);
+    float* pixels = stbi_loadf(path.c_str(), &width, &height, &components, 3);
+    if (!pixels) {
+        throw std::runtime_error(
+            std::string("Failed to load HDR image ") + path + ": " + stbi_failure_reason()
+        );
+    }
+
+    ImageRgba16f image(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+    const uint16_t alpha_bits = float_to_half_bits(1.0f);
+
+    const size_t stride = static_cast<size_t>(width) * 3;
+    for (int y = 0; y < height; ++y) {
+        const float* row = pixels + static_cast<size_t>(y) * stride;
+        for (int x = 0; x < width; ++x) {
+            const float* px = row + static_cast<size_t>(x) * 3;
+            std::array<uint16_t, 4> rgba = {
+                float_to_half_bits(px[0]),
+                float_to_half_bits(px[1]),
+                float_to_half_bits(px[2]),
+                alpha_bits,
+            };
+            image.put_pixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y), rgba);
+        }
+    }
+
+    stbi_image_free(pixels);
+    return image;
 }
 
 ImageRgba16f load_exr(const std::string& path) {
-    // TODO: Implement EXR loading using OpenEXR or tinyexr
-    // For now, return a placeholder
-    TEKKI_LOG_WARN("EXR loading not yet implemented, returning placeholder");
-    return ImageRgba16f(1, 1);
+    try {
+        OPENEXR_IMF_NAMESPACE::RgbaInputFile file(path.c_str());
+        const Imath::Box2i dw = file.dataWindow();
+        const int width = dw.max.x - dw.min.x + 1;
+        const int height = dw.max.y - dw.min.y + 1;
+
+        OPENEXR_IMF_NAMESPACE::Array2D<OPENEXR_IMF_NAMESPACE::Rgba> pixels;
+        pixels.resizeErase(height, width);
+
+        file.setFrameBuffer(
+            &pixels[0][0] - dw.min.x - dw.min.y * width,
+            1,
+            width
+        );
+        file.readPixels(dw.min.y, dw.max.y);
+
+        ImageRgba16f image(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        const uint16_t alpha_bits = float_to_half_bits(1.0f);
+
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                const auto& px = pixels[y][x];
+                std::array<uint16_t, 4> rgba = {
+                    static_cast<uint16_t>(px.r.bits()),
+                    static_cast<uint16_t>(px.g.bits()),
+                    static_cast<uint16_t>(px.b.bits()),
+                    alpha_bits,
+                };
+                image.put_pixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y), rgba);
+            }
+        }
+
+        return image;
+    } catch (const OPENEXR_IMF_NAMESPACE::BaseExc& e) {
+        throw std::runtime_error(std::string("Failed to load EXR image ") + path + ": " + e.what());
+    }
 }
 
 } // namespace tekki::renderer
