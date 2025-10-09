@@ -760,6 +760,8 @@ Requirements:
 - Keep all comments and docstrings
 - Do not use Macro based header guards, use #pragma once instead
 - Use exceptions for error handling and try catch instead of return Results
+- Please translate the code completely, do not leave any TODOs
+- 对于macaw库，能用glm替代就用glm替代
 
 {context}
 
@@ -803,6 +805,8 @@ Requirements:
 - Use modern C++20 features
 - Keep all comments and docstrings
 - Use exceptions for error handling and try catch instead of return Results
+- Please translate the code completely, do not leave any TODOs
+- 对于macaw库，能用glm替代就用glm替代
 
 Header file:
 ```cpp
