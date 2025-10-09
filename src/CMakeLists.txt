@@ -3,6 +3,7 @@ add_library(tekki-core STATIC
     core/log.cpp
     core/time.cpp
     core/config.cpp
+    core/mmap.cpp
 )
 
 target_include_directories(tekki-core
@@ -71,17 +72,29 @@ target_link_libraries(tekki-rg
 )
 
 # Asset library - loading and processing
-add_library(tekki-asset INTERFACE)
+add_library(tekki-asset STATIC
+    asset/image.cpp
+    asset/image_process.cpp
+    asset/mesh.cpp
+    asset/gltf_importer.cpp
+    asset/gltf_loader.cpp
+    asset/gltf_loader_process.cpp
+    asset/tangent_calc.cpp
+    asset/serialization.cpp
+    asset/asset_pipeline.cpp
+)
 
 target_include_directories(tekki-asset
-    INTERFACE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-asset
-    INTERFACE
+    PUBLIC
         tekki-core
+        tekki-backend
+        stb::stb
         OpenEXR::OpenEXR
         nlohmann_json::nlohmann_json
         yaml-cpp::yaml-cpp
@@ -91,16 +104,39 @@ target_link_libraries(tekki-asset
 )
 
 # Renderer library - main rendering implementation
-add_library(tekki-renderer INTERFACE)
+add_library(tekki-renderer STATIC
+    # Renderer modules
+    renderer/renderers/dof.cpp
+    renderer/renderers/ibl.cpp
+    renderer/renderers/ircache.cpp
+    renderer/renderers/lighting.cpp
+    renderer/renderers/motion_blur.cpp
+    renderer/renderers/post.cpp
+    renderer/renderers/renderers.cpp
+    renderer/renderers/rtdgi.cpp
+    renderer/renderers/rtr.cpp
+    renderer/renderers/ussgi.cpp
+    renderer/renderers/wrc.cpp
+
+    # Renderer utilities
+    renderer/lut_renderers.cpp
+    renderer/half_res.cpp
+    renderer/prefix_scan.cpp
+    renderer/image_lut.cpp
+
+    # World renderer
+    renderer/world/WorldRenderer.cpp
+    renderer/world/world_render_passes.cpp
+)
 
 target_include_directories(tekki-renderer
-    INTERFACE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(tekki-renderer
-    INTERFACE
+    PUBLIC
         tekki-backend
         tekki-rg
         tekki-asset

@@ -4,6 +4,7 @@
 #include "../../backend/vulkan/image.h"
 #include "../../backend/vulkan/buffer.h"
 #include "../../../include/tekki/shared/camera.h"
+#include "../image_lut.h"
 
 #include <memory>
 #include <optional>
@@ -74,30 +75,6 @@ struct PingPongTemporalResource {
     );
 };
 
-// Image LUT
-struct ImageLut {
-    std::shared_ptr<vulkan::Image> image;
-    bool computed = false;
-
-    ImageLut(std::shared_ptr<vulkan::Image> img) : image(std::move(img)) {}
-
-    void compute_if_needed(render_graph::RenderGraph& rg) {
-        if (computed) {
-            return;
-        }
-
-        // TODO: Implement LUT computation logic
-        // This would involve:
-        // 1. Importing the image into the render graph
-        // 2. Running compute shader to generate LUT data
-        // 3. Exporting the image for shader access
-
-        computed = true;
-    }
-
-    std::shared_ptr<vulkan::Image> backing_image() const {
-        return image;
-    }
-};
+// Note: ImageLut is now defined in image_lut.h for better modularity
 
 } // namespace tekki::renderer

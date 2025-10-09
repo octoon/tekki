@@ -9,13 +9,27 @@
 namespace tekki::renderer
 {
 
-IrcacheRenderer::IrcacheRenderer() : ircache_tex_("ircache"), eye_position_(0.0f), grid_center_(0.0f) {
+// IRCache constants based on original Rust implementation
+constexpr float IRCACHE_GRID_CELL_DIAMETER = 0.16f * 0.125f;
+constexpr uint32_t IRCACHE_CASCADE_SIZE = 32;
+constexpr uint32_t IRCACHE_SAMPLES_PER_FRAME = 4;
+constexpr uint32_t IRCACHE_VALIDATION_SAMPLES_PER_FRAME = 4;
+constexpr uint32_t MAX_ENTRIES = 1024 * 64;
+constexpr uint32_t MAX_GRID_CELLS = IRCACHE_CASCADE_SIZE * IRCACHE_CASCADE_SIZE * IRCACHE_CASCADE_SIZE * shared::IRCACHE_CASCADE_COUNT;
+
+IrcacheRenderer::IrcacheRenderer()
+    : ircache_tex_("ircache"), eye_position_(0.0f), grid_center_(0.0f), initialized_(false), parity_(0), enable_scroll_(true)
+{
     // Initialize IRCache cascades with default values
     ircache_cascades_.resize(shared::IRCACHE_CASCADE_COUNT);
     for (auto& cascade : ircache_cascades_) {
         cascade.origin = glm::ivec4(0);
         cascade.voxels_scrolled_this_frame = glm::ivec4(0);
     }
+
+    // Initialize scroll tracking
+    cur_scroll_.resize(shared::IRCACHE_CASCADE_COUNT, glm::ivec3(0));
+    prev_scroll_.resize(shared::IRCACHE_CASCADE_COUNT, glm::ivec3(0));
 }
 
 render_graph::ReadOnlyHandle<vulkan::Image>
@@ -67,10 +81,27 @@ IrcacheRenderer::render(render_graph::TemporalRenderGraph& rg, const GbufferDept
 
 void IrcacheRenderer::update_eye_position(const glm::vec3& eye_position)
 {
+    if (!enable_scroll_) {
+        return;
+    }
+
     eye_position_ = eye_position;
-    // Update grid center based on eye position
-    // TODO: Implement proper grid center update logic
     grid_center_ = eye_position;
+
+    // Update cascade scroll positions based on eye position
+    for (uint32_t cascade = 0; cascade < shared::IRCACHE_CASCADE_COUNT; ++cascade) {
+        float cell_diameter = IRCACHE_GRID_CELL_DIAMETER * (1u << cascade);
+        glm::vec3 cascade_center = glm::floor(eye_position / cell_diameter);
+        glm::ivec3 cascade_origin = glm::ivec3(cascade_center) - glm::ivec3(IRCACHE_CASCADE_SIZE / 2);
+
+        prev_scroll_[cascade] = cur_scroll_[cascade];
+        cur_scroll_[cascade] = cascade_origin;
+
+        // Update cascade constants
+        glm::ivec3 scroll_amount = cur_scroll_[cascade] - prev_scroll_[cascade];
+        ircache_cascades_[cascade].origin = glm::ivec4(cur_scroll_[cascade], 0);
+        ircache_cascades_[cascade].voxels_scrolled_this_frame = glm::ivec4(scroll_amount, 0);
+    }
 }
 
 const std::vector<IrcacheCascadeConstants>& IrcacheRenderer::constants() const

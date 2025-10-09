@@ -40,6 +40,13 @@ private:
     std::vector<IrcacheCascadeConstants> ircache_cascades_;
     glm::vec3 eye_position_;
     glm::vec3 grid_center_;
+
+    // Cascade scrolling state
+    bool initialized_;
+    uint32_t parity_;
+    bool enable_scroll_;
+    std::vector<glm::ivec3> cur_scroll_;
+    std::vector<glm::ivec3> prev_scroll_;
 };
 
 } // namespace tekki::renderer

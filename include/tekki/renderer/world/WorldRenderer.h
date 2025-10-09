@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../render_graph/RenderGraph.h"
+#include "../../render_graph/Temporal.h"
 #include "../../backend/vulkan/device.h"
 #include "../../backend/vulkan/image.h"
 #include "../../backend/vulkan/buffer.h"
@@ -9,6 +10,7 @@
 #include "../../backend/vulkan/dynamic_constants.h"
 #include "../renderers/renderers.h"
 #include "../lut_renderers.h"
+#include "frame_desc.h"
 
 #include <memory>
 #include <vector>
@@ -21,6 +23,7 @@ namespace tekki::renderer::world {
 class MeshManager;
 struct MeshHandle;
 struct InstanceHandle;
+struct WorldFrameDesc;
 
 // GPU mesh structure - matches Rust layout
 struct GpuMesh {
@@ -225,6 +228,10 @@ public:
 
     // Ray tracing
     void build_ray_tracing_top_level_acceleration();
+    render_graph::Handle<vulkan::RayTracingAcceleration> prepare_top_level_acceleration(render_graph::RenderGraph& rg);
+
+    // Exposure state
+    const ExposureState& exposure_state() const;
 
     // Getters
     std::shared_ptr<vulkan::Device> device() const { return device_; }
@@ -338,6 +345,17 @@ private:
     void initialize_default_resources();
     void update_frame_constants(const CameraMatrices& camera, const std::array<uint32_t, 2>& output_extent);
     void update_instance_transforms();
+
+    // Render graph preparation methods
+    render_graph::Handle<vulkan::Image> prepare_render_graph_standard(
+        render_graph::TemporalRenderGraph& rg,
+        const WorldFrameDesc& frame_desc
+    );
+
+    render_graph::Handle<vulkan::Image> prepare_render_graph_reference(
+        render_graph::TemporalRenderGraph& rg,
+        const WorldFrameDesc& frame_desc
+    );
 };
 
 // Template implementation

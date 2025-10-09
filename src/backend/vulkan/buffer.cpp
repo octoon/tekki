@@ -11,8 +11,8 @@
 namespace tekki::backend::vulkan
 {
 
-Buffer::Buffer(vk::Buffer buffer, const BufferDesc& desc, class SubAllocation allocation)
-    : buffer_(buffer), desc_(desc), allocation_(std::move(allocation))
+Buffer::Buffer(vk::Buffer buffer, const BufferDesc& desc, VmaAllocation allocation, VmaAllocator allocator_handle)
+    : buffer_(buffer), desc_(desc), allocation_(allocation), allocator_handle_(allocator_handle)
 {
 }
 
@@ -29,8 +29,15 @@ uint64_t Buffer::device_address(vk::Device device) const
 
 void* Buffer::mapped_data() const
 {
-    // TODO: Return mapped data from allocation
-    return nullptr;
+    if (!allocation_)
+    {
+        return nullptr;
+    }
+
+    VmaAllocationInfo alloc_info;
+    vmaGetAllocationInfo(allocator_handle_, allocation_, &alloc_info);
+
+    return alloc_info.pMappedData;
 }
 
 size_t Buffer::mapped_size() const

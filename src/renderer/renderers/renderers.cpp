@@ -1,5 +1,6 @@
 #include "../../include/tekki/renderer/renderers/renderers.h"
 #include "../../backend/vulkan/image.h"
+#include "../../include/tekki/renderer/half_res.h"
 
 namespace tekki::renderer {
 
@@ -11,24 +12,16 @@ GbufferDepth::GbufferDepth(
 
 render_graph::Handle<vulkan::Image> GbufferDepth::get_half_view_normal(render_graph::RenderGraph& rg) {
     if (!half_view_normal.has_value()) {
-        // Create half-resolution view normal
-        auto desc = rg.resource_desc(geometric_normal);
-        desc.extent[0] /= 2;
-        desc.extent[1] /= 2;
-
-        half_view_normal = rg.create_image(desc, "half_view_normal");
+        // Use the dedicated half_res utility function
+        half_view_normal = extract_half_res_gbuffer_view_normal_rgba8(rg, gbuffer);
     }
     return half_view_normal.value();
 }
 
 render_graph::Handle<vulkan::Image> GbufferDepth::get_half_depth(render_graph::RenderGraph& rg) {
     if (!half_depth.has_value()) {
-        // Create half-resolution depth
-        auto desc = rg.resource_desc(depth);
-        desc.extent[0] /= 2;
-        desc.extent[1] /= 2;
-
-        half_depth = rg.create_image(desc, "half_depth");
+        // Use the dedicated half_res utility function
+        half_depth = extract_half_res_depth(rg, depth);
     }
     return half_depth.value();
 }

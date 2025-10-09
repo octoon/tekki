@@ -75,15 +75,18 @@ struct BufferDesc
     }
 };
 
+class VulkanAllocator;
+
 class Buffer
 {
 public:
-    Buffer(vk::Buffer buffer, const BufferDesc& desc, VmaAllocation allocation);
+    Buffer(vk::Buffer buffer, const BufferDesc& desc, VmaAllocation allocation, VmaAllocator allocator_handle);
     ~Buffer();
 
     // Getters
     vk::Buffer raw() const { return buffer_; }
     const BufferDesc& desc() const { return desc_; }
+    VmaAllocation allocation() const { return allocation_; }
     uint64_t device_address(vk::Device device) const;
 
     // Memory mapping
@@ -91,9 +94,12 @@ public:
     size_t mapped_size() const;
 
 private:
+    friend class Device;
+
     vk::Buffer buffer_;
     BufferDesc desc_;
     VmaAllocation allocation_;
+    VmaAllocator allocator_handle_; // Store for accessing allocation info
 };
 
 } // namespace tekki::backend::vulkan

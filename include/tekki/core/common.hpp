@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include "result.hpp"
 
 // Platform detection
 #if defined(_WIN32)

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <vulkan/vulkan.hpp>
 
@@ -61,8 +62,14 @@ template <typename T> uint32_t DynamicConstants::push(const T& data)
 
     const uint32_t buffer_offset = current_offset();
 
-    // TODO: Implement memory mapping and data copying
-    // This requires access to the buffer's mapped memory
+    // Copy data to mapped memory
+    uint8_t* mapped_ptr = static_cast<uint8_t*>(buffer_->mapped_data());
+    if (!mapped_ptr)
+    {
+        throw std::runtime_error("Dynamic constants buffer is not mapped");
+    }
+
+    std::memcpy(mapped_ptr + buffer_offset, &data, t_size);
 
     // Align the offset
     const size_t t_size_aligned = (t_size + DYNAMIC_CONSTANTS_ALIGNMENT - 1) & ~(DYNAMIC_CONSTANTS_ALIGNMENT - 1);
@@ -92,15 +99,18 @@ uint32_t DynamicConstants::push_from_iter(typename std::vector<T>::const_iterato
 
     const uint32_t buffer_offset = current_offset();
 
-    // TODO: Implement memory mapping and data copying for iterator range
-    // This requires access to the buffer's mapped memory
+    // Get mapped memory pointer
+    uint8_t* mapped_ptr = static_cast<uint8_t*>(buffer_->mapped_data());
+    if (!mapped_ptr)
+    {
+        throw std::runtime_error("Dynamic constants buffer is not mapped");
+    }
 
+    // Copy each element with proper alignment
     size_t dst_offset = buffer_offset;
     for (auto it = begin; it != end; ++it)
     {
-        // Copy each element
-        // TODO: Copy data to mapped memory
-
+        std::memcpy(mapped_ptr + dst_offset, &(*it), t_size);
         dst_offset += t_size + t_align - 1;
         dst_offset &= ~(t_align - 1);
     }
