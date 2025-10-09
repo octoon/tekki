@@ -32,16 +32,14 @@ struct DescriptorSetBinding
     };
 
     Type type;
-    std::variant < vk::DescriptorImageInfo, std::vector<vk::DescriptorImageInfo>, vk::DescriptorBufferInfo,
-        vk::AccelerationStructureKHR, struct
-    {
-        vk::DescriptorBufferInfo buffer;
-        uint32_t offset;
-    }, struct
-    {
-        vk::DescriptorBufferInfo buffer;
-        uint32_t offset;
-    } > data;
+    std::variant<
+        vk::DescriptorImageInfo,
+        std::vector<vk::DescriptorImageInfo>,
+        vk::DescriptorBufferInfo,
+        vk::AccelerationStructureKHR,
+        std::pair<vk::DescriptorBufferInfo, uint32_t>,  // DynamicBuffer
+        std::pair<vk::DescriptorBufferInfo, uint32_t>   // DynamicStorageBuffer
+    > data;
 };
 
 // Common pipeline binding

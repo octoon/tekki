@@ -5,7 +5,9 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <variant>
 
+// Backend includes
 #include "../backend/vulkan/barrier.h"
 #include "../backend/vulkan/device.h"
 #include "../backend/vulkan/dynamic_constants.h"
@@ -13,7 +15,13 @@
 #include "../backend/vulkan/transient_resource_cache.h"
 #include "../backend/vulkan/buffer.h"
 #include "../backend/vulkan/image.h"
+#include "../backend/vulkan/ray_tracing.h"
+#include "../backend/vulkan/barrier.h"
+#include "../backend/rspirv_reflect/rspirv_reflect.h"
+
+// Forward include for resource types
 #include "resource.h"
+#include "execution_params.h"
 #include "resource_registry.h"
 
 namespace tekki::render_graph
@@ -22,14 +30,21 @@ namespace tekki::render_graph
 // Forward declarations
 class PassBuilder;
 struct RecordedPass;
+class ResourceRegistry;
+class CompiledRenderGraph;
+class ExecutingRenderGraph;
+class RetiredRenderGraph;
 
-// Forward declarations for backend types
-namespace backend::vulkan {
-    class CommandBuffer;
-    class Device;
-    class Image;
-    class TransientResourceCache;
-}
+// Import backend types
+using CommandBuffer = backend::vulkan::CommandBuffer;
+using Device = backend::vulkan::Device;
+using Image = backend::vulkan::Image;
+using Buffer = backend::vulkan::Buffer;
+using RayTracingAcceleration = backend::vulkan::AccelerationStructure;
+using AccessType = backend::vulkan::AccessType;
+using PipelineCache = backend::vulkan::PipelineCache;
+using DynamicConstants = backend::vulkan::DynamicConstants;
+using TransientResourceCache = backend::vulkan::TransientResourceCache;
 
 // Placeholder pipeline descriptions (to be properly defined later)
 struct ComputePipelineDesc {};
@@ -43,9 +58,7 @@ class RasterPipeline {};
 class RayTracingPipeline {};
 
 // Placeholder types (to be properly defined later)
-struct FrameConstantsLayout {};
 struct PendingDebugPass {};
-struct CompiledRenderGraph {};
 
 // Resource creation info
 struct GraphResourceCreateInfo
@@ -106,31 +119,16 @@ struct ExportableGraphResource
     }
 };
 
-// Pipeline handles
-struct RgComputePipelineHandle
-{
-    size_t id;
-};
-
+// Pipeline descriptors
 struct RgComputePipeline
 {
     ComputePipelineDesc desc;
-};
-
-struct RgRasterPipelineHandle
-{
-    size_t id;
 };
 
 struct RgRasterPipeline
 {
     std::vector<PipelineShaderDesc> shaders;
     RasterPipelineDesc desc;
-};
-
-struct RgRtPipelineHandle
-{
-    size_t id;
 };
 
 struct RgRtPipeline
@@ -142,7 +140,7 @@ struct RgRtPipeline
 // Predefined descriptor set
 struct PredefinedDescriptorSet
 {
-    std::unordered_map<uint32_t, rspirv_reflect::DescriptorInfo> bindings;
+    std::unordered_map<uint32_t, backend::rspirv_reflect::DescriptorInfo> bindings;
 };
 
 // Debug hooks
@@ -170,7 +168,7 @@ public:
     // Resource import/export
     template <typename Res> Handle<Res> import(std::shared_ptr<Res> resource, backend::vulkan::AccessType access_type);
 
-    template <typename Res> ExportedHandle<Res> export(Handle<Res> resource, backend::vulkan::AccessType access_type);
+    template <typename Res> ExportedHandle<Res> export_resource(Handle<Res> resource, backend::vulkan::AccessType access_type);
 
     // Pass management
     PassBuilder add_pass(const std::string& name);
@@ -194,7 +192,7 @@ private:
 
     GraphRawResourceHandle create_raw_resource(const GraphResourceCreateInfo& info);
     void record_pass(RecordedPass pass);
-    ResourceInfo calculate_resource_info() const;
+    std::vector<GraphResourceInfo> calculate_resource_info() const;
     std::optional<PendingDebugPass> hook_debug_pass(const RecordedPass& pass);
 
     friend class PassBuilder;
@@ -205,7 +203,7 @@ template <typename Res> class ImportExportToRenderGraph
 {
 public:
     static Handle<Res> import(std::shared_ptr<Res> self, RenderGraph& rg, backend::vulkan::AccessType access_type);
-    static ExportedHandle<Res> export(Handle<Res> resource, RenderGraph& rg, backend::vulkan::AccessType access_type);
+    static ExportedHandle<Res> export_resource(Handle<Res> resource, RenderGraph& rg, backend::vulkan::AccessType access_type);
 };
 
 // Type equality trait
@@ -215,30 +213,12 @@ template <typename T> struct TypeEquals
     static Other same(T value) { return value; }
 };
 
-// Execution parameters
-struct RenderGraphExecutionParams
-{
-    backend::vulkan::Device* device;
-    PipelineCache* pipeline_cache;
-    vk::DescriptorSet frame_descriptor_set;
-    FrameConstantsLayout frame_constants_layout;
-    VkProfilerData* profiler_data;
-};
-
-// Pipeline collections
-struct RenderGraphPipelines
-{
-    std::vector<RgComputePipelineHandle> compute;
-    std::vector<RgRasterPipelineHandle> raster;
-    std::vector<RgRtPipelineHandle> rt;
-};
-
 // Compiled render graph
 class CompiledRenderGraph
 {
 public:
     RenderGraph rg;
-    ResourceInfo resource_info;
+    std::vector<GraphResourceInfo> resource_info;
     RenderGraphPipelines pipelines;
 
     ExecutingRenderGraph begin_execute(const RenderGraphExecutionParams& params,
@@ -268,7 +248,7 @@ private:
 class RetiredRenderGraph
 {
 public:
-    template <typename Res> std::pair<const Res*, backend::vulkan::AccessType> exported_resource(ExportedHandle<Res> handle);
+    template <typename Res> std::pair<const Res*, backend::vulkan::AccessType> exported_resource(ExportedHandle<Res> handle) const;
 
     void release_resources(TransientResourceCache& transient_resource_cache);
 

@@ -60,11 +60,11 @@ This is a work-in-progress translation from Rust to C++. The project follows a d
 
 ### Build Commands
 ```bash
-# Windows - Debug build (recommended for development)
-Setup.bat
+# Windows(bash) - Debug build (recommended for development)
+./Setup.bat
 
-# Windows - Release build
-Setup.bat release
+# Windows(bash) - Release build
+./Setup.bat release
 
 # Manual build with Conan profiles
 conan install . --profile:host conan/profiles/windows-msvc-debug --profile:build conan/profiles/windows-msvc-debug --build=missing --output-folder=build/debug

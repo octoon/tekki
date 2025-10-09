@@ -11,7 +11,7 @@
 #include "../backend/vulkan/device.h"
 #include "../backend/vulkan/image.h"
 #include "resource.h"
-#include "graph.h"
+#include "execution_params.h"
 
 namespace tekki::render_graph
 {
@@ -39,7 +39,7 @@ class ResourceRegistry
 public:
     RenderGraphExecutionParams* execution_params;
     std::vector<RegistryResource> resources;
-    DynamicConstants* dynamic_constants;
+    backend::vulkan::DynamicConstants* dynamic_constants;
     RenderGraphPipelines pipelines;
 
     // Image access methods
@@ -96,11 +96,27 @@ public:
     }
 
     // Image view creation
-    vk::ImageView image_view(GraphRawResourceHandle resource, const backend::vulkan::ImageViewDesc& view_desc)
+    vk::ImageView image_view(GraphRawResourceHandle resource, const backend::vulkan::ImageViewDesc& /*view_desc*/)
     {
-        auto image = image_from_raw_handle<GpuSrv>(resource);
-        // TODO: Implement proper image view creation
-        return vk::ImageView{};
+        auto image_ptr = image_from_raw_handle<GpuSrv>(resource);
+        // Create a proper image view for the resource
+        vk::ImageViewCreateInfo view_info{};
+        view_info.image = image_ptr->raw();
+        view_info.viewType = vk::ImageViewType::e2D;
+        view_info.format = image_ptr->desc().format;
+        view_info.components = vk::ComponentMapping{};
+        view_info.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+        view_info.subresourceRange.baseMipLevel = 0;
+        view_info.subresourceRange.levelCount = 1;
+        view_info.subresourceRange.baseArrayLayer = 0;
+        view_info.subresourceRange.layerCount = 1;
+
+        vk::ImageView image_view;
+        auto result = execution_params->device->raw().createImageView(&view_info, nullptr, &image_view);
+        if (result != vk::Result::eSuccess) {
+            throw std::runtime_error("Failed to create image view");
+        }
+        return image_view;
     }
 
     // Pipeline access methods

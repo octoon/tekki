@@ -5,7 +5,9 @@
       "Bash(dir:*)",
       "Bash(find:*)",
       "Bash(cmake:*)",
-      "Bash(\"C:\\Users\\jstzw\\.conan2\\p\\b\\clang43100406ba76f\\p\\bin\\clang-format\":*)"
+      "Bash(\"C:\\Users\\jstzw\\.conan2\\p\\b\\clang43100406ba76f\\p\\bin\\clang-format\":*)",
+      "Bash(Setup.bat)",
+      "Bash(cmd.exe /c \"Setup.bat\")"
     ],
     "deny": [],
     "ask": []

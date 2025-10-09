@@ -3,38 +3,52 @@
         {
             "name": "Windows",
             "includePath": [
-                "${workspaceFolder}/**",
-                "${workspaceFolder}/build/debug/build/generators/**",
-                "${workspaceFolder}/build/debug/build/generators/VulkanHeaders/**",
-                "${workspaceFolder}/build/debug/build/generators/spdlog/**",
-                "${workspaceFolder}/build/debug/build/generators/glm/**",
-                "${workspaceFolder}/build/debug/build/generators/imgui/**",
-                "${workspaceFolder}/build/debug/build/generators/glfw3/**",
-                "${workspaceFolder}/build/debug/build/generators/vulkan-memory-allocator/**",
-                "${workspaceFolder}/build/debug/build/generators/tinygltf/**",
-                "${workspaceFolder}/build/debug/build/generators/openexr/**",
-                "${workspaceFolder}/build/debug/build/generators/spirv-cross/**",
-                "${workspaceFolder}/build/debug/build/generators/spirv-tools/**",
-                "${workspaceFolder}/build/debug/build/generators/yaml-cpp/**",
-                "${workspaceFolder}/build/debug/build/generators/tomlplusplus/**",
-                "${workspaceFolder}/build/debug/build/generators/nlohmann_json/**",
-                "${workspaceFolder}/build/debug/build/generators/fmt/**",
-                "${workspaceFolder}/build/debug/build/generators/CLI11/**",
-                "${workspaceFolder}/build/debug/build/generators/half/**",
-                "${workspaceFolder}/build/debug/build/generators/stb/**",
-                "${workspaceFolder}/build/debug/build/generators/efsw/**",
-                "C:/Users/jstzw/.conan2/p/**/include",
-                "C:/VulkanSDK/**/include"
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/kajiya",
+                "${workspaceFolder}/build/debug/build/generators",
+                "${workspaceFolder}/build/debug/build/generators/VulkanHeaders/include",
+                "${workspaceFolder}/build/debug/build/generators/spdlog/include",
+                "${workspaceFolder}/build/debug/build/generators/glm/include",
+                "${workspaceFolder}/build/debug/build/generators/imgui/include",
+                "${workspaceFolder}/build/debug/build/generators/glfw3/include",
+                "${workspaceFolder}/build/debug/build/generators/vulkan-memory-allocator/include",
+                "${workspaceFolder}/build/debug/build/generators/tinygltf/include",
+                "${workspaceFolder}/build/debug/build/generators/openexr/include",
+                "${workspaceFolder}/build/debug/build/generators/spirv-cross/include",
+                "${workspaceFolder}/build/debug/build/generators/spirv-tools/include",
+                "${workspaceFolder}/build/debug/build/generators/yaml-cpp/include",
+                "${workspaceFolder}/build/debug/build/generators/tomlplusplus/include",
+                "${workspaceFolder}/build/debug/build/generators/nlohmann_json/include",
+                "${workspaceFolder}/build/debug/build/generators/fmt/include",
+                "${workspaceFolder}/build/debug/build/generators/CLI11/include",
+                "${workspaceFolder}/build/debug/build/generators/half/include",
+                "${workspaceFolder}/build/debug/build/generators/stb/include",
+                "${workspaceFolder}/build/debug/build/generators/efsw/include",
+                "C:/Users/jstzw/.conan2/p/b/**/include",
+                "C:/VulkanSDK/*/Include"
             ],
             "defines": [
                 "TEKKI_DEBUG",
-                "TEKKI_ENABLE_VALIDATION"
+                "TEKKI_ENABLE_VALIDATION",
+                "VK_USE_PLATFORM_WIN32_KHR",
+                "_CRT_SECURE_NO_WARNINGS",
+                "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"
             ],
             "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.39.33519/bin/Hostx64/x64/cl.exe",
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "windows-msvc-x64",
-            "configurationProvider": "ms-vscode.cmake-tools"
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/include",
+                    "${workspaceFolder}/src",
+                    "${workspaceFolder}/build/debug/build/generators"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+            }
         }
     ],
     "version": 4

@@ -73,3 +73,7 @@ view_state.ron
 dxcompiler.dll
 libdxcompiler.so
 libdxcompiler.dynlib
+
+*.DB
+*.DB-shm
+*.DB-wal

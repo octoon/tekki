@@ -80,19 +80,11 @@ struct TemporalResourceState
     };
 
     Type type;
-    std::variant < struct
-    {
-        TemporalResource resource;
-        backend::vulkan::AccessType access_type;
-    }, struct
-    {
-        TemporalResource resource;
-        ExportableGraphResource handle;
-    }, struct
-    {
-        TemporalResource resource;
-        ExportedResourceHandle handle;
-    } > data;
+    std::variant<
+        std::tuple<TemporalResource, backend::vulkan::AccessType>,        // Inert
+        std::tuple<TemporalResource, ExportableGraphResource>,            // Imported
+        std::tuple<TemporalResource, ExportedResourceHandle>              // Exported
+    > data;
 };
 
 // Temporal render graph state
@@ -111,7 +103,8 @@ public:
                 auto& inert_data = std::get<0>(state.data);
                 result.resources[key] = TemporalResourceState{
                     .type = TemporalResourceState::Type::Inert,
-                    .data = {.resource = inert_data.resource.clone(), .access_type = inert_data.access_type}};
+                    .data = std::make_tuple(std::get<0>(inert_data).clone(), std::get<1>(inert_data))
+                };
             }
             else
             {

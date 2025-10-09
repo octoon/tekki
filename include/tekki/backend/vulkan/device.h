@@ -24,6 +24,7 @@ namespace tekki::backend::vulkan
 
 class PhysicalDevice;
 class Instance;
+class CommandBuffer;
 
 struct Queue
 {
@@ -54,6 +55,21 @@ struct SamplerDescHash
     }
 };
 
+class CommandBuffer
+{
+public:
+    CommandBuffer(vk::Device device, const class QueueFamily& queue_family);
+    ~CommandBuffer();
+
+    vk::CommandBuffer raw() const { return command_buffer_; }
+    vk::Fence submit_done_fence() const { return submit_done_fence_; }
+
+private:
+    vk::CommandBuffer command_buffer_;
+    vk::CommandPool command_pool_;
+    vk::Fence submit_done_fence_;
+};
+
 class DeviceFrame
 {
 public:
@@ -78,21 +94,6 @@ public:
 
     // Profiler data
     std::unique_ptr<GpuProfiler> profiler;
-};
-
-class CommandBuffer
-{
-public:
-    CommandBuffer(vk::Device device, const class QueueFamily& queue_family);
-    ~CommandBuffer();
-
-    vk::CommandBuffer raw() const { return command_buffer_; }
-    vk::Fence submit_done_fence() const { return submit_done_fence_; }
-
-private:
-    vk::CommandBuffer command_buffer_;
-    vk::CommandPool command_pool_;
-    vk::Fence submit_done_fence_;
 };
 
 class Device : public std::enable_shared_from_this<Device>

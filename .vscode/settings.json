@@ -10,7 +10,27 @@
         "*.hpp": "cpp",
         "*.cpp": "cpp",
         "*.h": "c",
-        "*.c": "c"
+        "*.c": "c",
+        "*.hlsl": "cpp",
+        "*.glsl": "cpp",
+        "*.vert": "cpp",
+        "*.frag": "cpp",
+        "*.comp": "cpp"
     },
-    "C_Cpp.errorSquiggles": "enabled"
+    "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.autocomplete": "default",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.cStandard": "c17",
+    "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "editor.quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": false
+    },
+    "editor.suggest.showStatusBar": true,
+    "editor.acceptSuggestionOnCommitCharacter": true
 }
