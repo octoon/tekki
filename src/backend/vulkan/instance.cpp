@@ -133,7 +133,16 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Instance::VulkanDebugCallback(
     const char* layerPrefix,
     const char* message,
     void* userData) {
-    
+
+    // Suppress unused parameter warnings
+    (void)flags;
+    (void)objType;
+    (void)srcObj;
+    (void)location;
+    (void)msgCode;
+    (void)layerPrefix;
+    (void)userData;
+
     std::string msgStr(message);
     
     if (msgStr.find("Validation Error: [ VUID-VkWriteDescriptorSet-descriptorType-00322") == 0 ||

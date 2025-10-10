@@ -4,79 +4,48 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-#include "gpu_profiler/backend/ash/VulkanProfilerFrame.hpp"
+#include "tekki/gpu_profiler/backend/vulkan.h"
+#include "tekki/gpu_allocator/vulkan/allocator.h"
 #include "tekki/core/result.h"
 
 namespace tekki::backend::vulkan
 {
 
-class ProfilerBuffer
-{
+// ProfilerBuffer 实现 VulkanBuffer 接口
+class ProfilerBuffer : public tekki::VulkanBuffer {
 public:
-    ProfilerBuffer(VkBuffer buffer, std::shared_ptr<void> allocation) : buffer_(buffer), allocation_(allocation) {}
+    ProfilerBuffer(VkBuffer buffer, tekki::Allocation allocation)
+        : buffer_(buffer), allocation_(std::move(allocation)) {}
 
-    const uint8_t* MappedSlice() const
-    {
-        // Implementation depends on allocation mapping
-        return static_cast<const uint8_t*>(allocation_.get());
+    const uint8_t* MappedSlice() const override {
+        return allocation_.MappedSlice();
     }
 
-    VkBuffer Raw() const { return buffer_; }
+    VkBuffer Raw() const override {
+        return buffer_;
+    }
 
 private:
     VkBuffer buffer_;
-    std::shared_ptr<void> allocation_;
+    tekki::Allocation allocation_;
 };
 
-class ProfilerBackend
-{
+// ProfilerBackend 实现 VulkanBackend 接口
+class ProfilerBackend : public tekki::VulkanBackend {
 public:
-    ProfilerBackend(VkDevice device, std::shared_ptr<void> allocator, float timestampPeriod)
-        : device_(device), allocator_(allocator), timestampPeriod_(timestampPeriod)
-    {
-    }
+    ProfilerBackend(VkDevice device, tekki::VulkanAllocator* allocator, float timestampPeriod)
+        : device_(device), allocator_(allocator), timestampPeriod_(timestampPeriod) {}
 
-    static ProfilerBackend Create(VkDevice device, std::shared_ptr<void> allocator, float timestampPeriod)
-    {
-        return ProfilerBackend(device, allocator, timestampPeriod);
-    }
-
-    ProfilerBuffer CreateQueryResultBuffer(size_t bytes)
-    {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = static_cast<VkDeviceSize>(bytes);
-        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        VkBuffer buffer;
-        VkResult result = vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer);
-        if (result != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create buffer");
-        }
-
-        VkMemoryRequirements requirements;
-        vkGetBufferMemoryRequirements(device_, buffer, &requirements);
-
-        // Memory allocation implementation depends on allocator interface
-        // This is a placeholder - actual implementation would use the allocator
-        auto allocation = std::make_shared<uint8_t[]>(bytes);
-
-        // Bind memory to buffer
-        // Implementation depends on specific memory binding requirements
-
-        return ProfilerBuffer(buffer, allocation);
-    }
-
-    float TimestampPeriod() const { return timestampPeriod_; }
+    std::unique_ptr<tekki::VulkanBuffer> CreateQueryResultBuffer(size_t bytes) override;
+    float TimestampPeriod() const override { return timestampPeriod_; }
 
 private:
     VkDevice device_;
-    std::shared_ptr<void> allocator_;
+    tekki::VulkanAllocator* allocator_;
     float timestampPeriod_;
 };
 
-using VkProfilerData = gpu_profiler::backend::ash::VulkanProfilerFrame<ProfilerBuffer>;
+// VkProfilerData 对应 VulkanProfilerFrame
+using VkProfilerData = tekki::VulkanProfilerFrame;
 
 } // namespace tekki::backend::vulkan

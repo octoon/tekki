@@ -31,7 +31,15 @@ constexpr size_t MAX_DYNAMIC_CONSTANTS_STORAGE_BUFFER_BYTES = 1024 * 1024;
 
 class DynamicConstants {
 public:
-    DynamicConstants(vulkan::Buffer buffer);
+    DynamicConstants(vulkan::Buffer&& buffer);
+
+    // 禁止拷贝
+    DynamicConstants(const DynamicConstants&) = delete;
+    DynamicConstants& operator=(const DynamicConstants&) = delete;
+
+    // 允许移动
+    DynamicConstants(DynamicConstants&&) noexcept = default;
+    DynamicConstants& operator=(DynamicConstants&&) noexcept = default;
 
     void AdvanceFrame();
 
@@ -52,8 +60,8 @@ private:
     size_t frameParity;
 };
 
-inline DynamicConstants::DynamicConstants(vulkan::Buffer buffer)
-    : buffer(buffer)
+inline DynamicConstants::DynamicConstants(vulkan::Buffer&& buffer)
+    : buffer(std::move(buffer))
     , frameOffsetBytes(0)
     , frameParity(0) {
 }

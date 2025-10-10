@@ -351,6 +351,18 @@ VkImageCreateInfo GetImageCreateInfo(const ImageDesc& desc, bool initialData) {
 
 namespace std {
 
+size_t hash<tekki::backend::vulkan::ImageDesc>::operator()(const tekki::backend::vulkan::ImageDesc& desc) const {
+    size_t h1 = std::hash<int>{}(static_cast<int>(desc.Type));
+    size_t h2 = std::hash<VkImageUsageFlags>{}(desc.Usage);
+    size_t h3 = std::hash<VkImageCreateFlags>{}(desc.Flags);
+    size_t h4 = std::hash<VkFormat>{}(desc.Format);
+    size_t h5 = std::hash<uint32_t>{}(desc.Extent.x) ^ (std::hash<uint32_t>{}(desc.Extent.y) << 1) ^ (std::hash<uint32_t>{}(desc.Extent.z) << 2);
+    size_t h6 = std::hash<VkImageTiling>{}(desc.Tiling);
+    size_t h7 = std::hash<uint16_t>{}(desc.MipLevels);
+    size_t h8 = std::hash<uint32_t>{}(desc.ArrayElements);
+    return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4) ^ (h6 << 5) ^ (h7 << 6) ^ (h8 << 7);
+}
+
 size_t hash<tekki::backend::vulkan::ImageViewDesc>::operator()(const tekki::backend::vulkan::ImageViewDesc& desc) const {
     size_t seed = 0;
     

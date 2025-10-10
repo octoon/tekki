@@ -5,25 +5,7 @@
 
 namespace tekki::backend::vulkan {
 
-ProfilerBuffer::ProfilerBuffer(VkBuffer buffer, std::shared_ptr<void> allocation)
-    : buffer_(buffer), allocation_(allocation) {}
-
-const uint8_t* ProfilerBuffer::MappedSlice() const {
-    return static_cast<const uint8_t*>(allocation_.get());
-}
-
-VkBuffer ProfilerBuffer::Raw() const {
-    return buffer_;
-}
-
-ProfilerBackend::ProfilerBackend(VkDevice device, std::shared_ptr<void> allocator, float timestampPeriod)
-    : device_(device), allocator_(allocator), timestampPeriod_(timestampPeriod) {}
-
-ProfilerBackend ProfilerBackend::Create(VkDevice device, std::shared_ptr<void> allocator, float timestampPeriod) {
-    return ProfilerBackend(device, allocator, timestampPeriod);
-}
-
-ProfilerBuffer ProfilerBackend::CreateQueryResultBuffer(size_t bytes) {
+std::unique_ptr<tekki::VulkanBuffer> ProfilerBackend::CreateQueryResultBuffer(size_t bytes) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = static_cast<VkDeviceSize>(bytes);
@@ -39,13 +21,27 @@ ProfilerBuffer ProfilerBackend::CreateQueryResultBuffer(size_t bytes) {
     VkMemoryRequirements requirements;
     vkGetBufferMemoryRequirements(device_, buffer, &requirements);
 
-    auto allocation = std::make_shared<uint8_t[]>(bytes);
-    
-    return ProfilerBuffer(buffer, allocation);
-}
+    // 使用 allocator 分配内存
+    tekki::AllocationCreateDesc allocDesc{};
+    allocDesc.name = "profiler_query_buffer";
+    allocDesc.requirements = requirements;
+    allocDesc.location = tekki::MemoryLocation::GpuToCpu;
+    allocDesc.linear = true; // Buffers are always linear
 
-float ProfilerBackend::TimestampPeriod() const {
-    return timestampPeriod_;
+    auto allocation = allocator_->Allocate(allocDesc);
+    if (!allocation) {
+        vkDestroyBuffer(device_, buffer, nullptr);
+        throw std::runtime_error("Failed to allocate buffer memory");
+    }
+
+    // 绑定内存到 buffer
+    result = vkBindBufferMemory(device_, buffer, allocation.value().Memory(), allocation.value().Offset());
+    if (result != VK_SUCCESS) {
+        vkDestroyBuffer(device_, buffer, nullptr);
+        throw std::runtime_error("Failed to bind buffer memory");
+    }
+
+    return std::make_unique<ProfilerBuffer>(buffer, std::move(allocation.value()));
 }
 
 } // namespace tekki::backend::vulkan
