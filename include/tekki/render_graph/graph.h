@@ -63,7 +63,7 @@ struct RgRtPipeline {
 };
 
 struct PredefinedDescriptorSet {
-    std::unordered_map<std::uint32_t, rspirv_reflect::DescriptorInfo> Bindings;
+    std::unordered_map<std::uint32_t, tekki::backend::vulkan::DescriptorInfo> Bindings;
 };
 
 struct RenderDebugHook {

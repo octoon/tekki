@@ -8,6 +8,9 @@
 #include <string>
 #include <cstring>
 #include <stdexcept>
+#include <functional>
+#include <array>
+#include <optional>
 #include <glm/glm.hpp>
 #include "vulkan/vulkan.h"
 #include <tekki/gpu_allocator/vulkan/allocator.h>
@@ -18,8 +21,18 @@
 #include "tekki/backend/vulkan/profiler.h"
 #include "tekki/backend/vulkan/instance.h"
 #include "tekki/backend/vulkan/error.h"
+#include "tekki/backend/vulkan/debug_utils.h"
 
 namespace tekki::backend::vulkan {
+
+class CrashMarkerNames;
+class BackendError;
+class RayTracingAcceleration;
+class RayTracingAccelerationScratchBuffer;
+struct RayTracingBottomAccelerationDesc;
+struct RayTracingTopAccelerationDesc;
+struct RayTracingInstanceDesc;
+class DynamicConstants;
 
 constexpr uint32_t ReservedDescriptorCount = 32;
 
@@ -78,7 +91,7 @@ public:
     VkProfilerData ProfilerData;
     
     DeviceFrame(const PhysicalDevice* pdevice, VkDevice device,
-                gpu_allocator::Allocator* globalAllocator,
+                tekki::Allocator* globalAllocator,
                 const QueueFamily& queueFamily);
     ~DeviceFrame() = default;
     
@@ -115,22 +128,23 @@ private:
     std::shared_ptr<Instance> instance_;
     Queue universalQueue_;
     std::shared_ptr<std::mutex> globalAllocatorMutex_;
-    std::shared_ptr<gpu_allocator::Allocator> globalAllocator_;
+    std::shared_ptr<tekki::Allocator> globalAllocator_;
     std::unordered_map<SamplerDesc, VkSampler, SamplerDescHash> immutableSamplers_;
     std::mutex setupCbMutex_;
-    CommandBuffer setupCb_;
+    std::optional<CommandBuffer> setupCb_;
     Buffer crashTrackingBuffer_;
     std::mutex crashMarkerNamesMutex_;
     CrashMarkerNames crashMarkerNames_;
     VkAccelerationStructureKHR accelerationStructureExt_;
-    VkRayTracingPipelineKHR rayTracingPipelineExt_;
+    void* rayTracingPipelineExt_;
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties_;
     std::array<std::mutex, 2> frameMutexes_;
     std::array<std::shared_ptr<DeviceFrame>, 2> frames_;
     bool rayTracingEnabled_;
-    
+    std::unique_ptr<class DebugUtils> debugUtils_;
+
     static std::unordered_map<SamplerDesc, VkSampler, SamplerDescHash> CreateSamplers(VkDevice device);
-    static Buffer CreateBufferImpl(VkDevice device, gpu_allocator::Allocator* allocator,
+    static Buffer CreateBufferImpl(VkDevice device, tekki::Allocator* allocator,
                                   const BufferDesc& desc, const std::string& name);
     void ReportError(const std::exception& error) const;
 
@@ -156,6 +170,17 @@ public:
     // Buffer management
     Buffer CreateBuffer(BufferDesc desc, const std::string& name, const std::vector<uint8_t>& initialData = {});
     void ImmediateDestroyBuffer(const Buffer& buffer);
+
+    // Error handling
+    void RecordCrashMarker(const CommandBuffer& cb, const std::string& name);
+    void ReportError(const BackendError& err);
+
+    // Ray tracing
+    std::shared_ptr<RayTracingAccelerationScratchBuffer> CreateRayTracingAccelerationScratchBuffer();
+    std::shared_ptr<RayTracingAcceleration> CreateRayTracingBottomAcceleration(const RayTracingBottomAccelerationDesc& desc);
+    std::shared_ptr<RayTracingAcceleration> CreateRayTracingTopAcceleration(const RayTracingTopAccelerationDesc& desc, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
+    VkDeviceAddress FillRayTracingInstanceBuffer(DynamicConstants& dynamicConstants, const std::vector<RayTracingInstanceDesc>& instances);
+    void RebuildRayTracingTopAcceleration(VkCommandBuffer commandBuffer, VkDeviceAddress instanceBufferAddress, size_t instanceCount, const std::shared_ptr<RayTracingAcceleration>& tlas, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
 
     VkDevice GetRaw() const { return raw_; }
     const Queue& GetUniversalQueue() const { return universalQueue_; }

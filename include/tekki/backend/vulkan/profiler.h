@@ -33,7 +33,7 @@ private:
 // ProfilerBackend 实现 VulkanBackend 接口
 class ProfilerBackend : public tekki::VulkanBackend {
 public:
-    ProfilerBackend(VkDevice device, tekki::VulkanAllocator* allocator, float timestampPeriod)
+    ProfilerBackend(VkDevice device, tekki::Allocator* allocator, float timestampPeriod)
         : device_(device), allocator_(allocator), timestampPeriod_(timestampPeriod) {}
 
     std::unique_ptr<tekki::VulkanBuffer> CreateQueryResultBuffer(size_t bytes) override;
@@ -41,7 +41,7 @@ public:
 
 private:
     VkDevice device_;
-    tekki::VulkanAllocator* allocator_;
+    tekki::Allocator* allocator_;
     float timestampPeriod_;
 };
 

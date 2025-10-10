@@ -64,30 +64,27 @@ struct ImageDesc {
                MipLevels == other.MipLevels &&
                ArrayElements == other.ArrayElements;
     }
+
+    struct Hash {
+        std::size_t operator()(const ImageDesc& desc) const noexcept {
+            std::size_t h1 = std::hash<uint32_t>{}(static_cast<uint32_t>(desc.Type));
+            std::size_t h2 = std::hash<uint32_t>{}(desc.Usage);
+            std::size_t h3 = std::hash<uint32_t>{}(desc.Flags);
+            std::size_t h4 = std::hash<uint32_t>{}(static_cast<uint32_t>(desc.Format));
+            std::size_t h5 = std::hash<uint32_t>{}(desc.Extent.x) ^ (std::hash<uint32_t>{}(desc.Extent.y) << 1) ^ (std::hash<uint32_t>{}(desc.Extent.z) << 2);
+            std::size_t h6 = std::hash<uint32_t>{}(static_cast<uint32_t>(desc.Tiling));
+            std::size_t h7 = std::hash<uint16_t>{}(desc.MipLevels);
+            std::size_t h8 = std::hash<uint32_t>{}(desc.ArrayElements);
+
+            return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4) ^ (h6 << 5) ^ (h7 << 6) ^ (h8 << 7);
+        }
+    };
 };
 
 struct ImageSubResourceData {
     const std::vector<uint8_t>& Data;
     size_t RowPitch;
     size_t SlicePitch;
-};
-
-class Image {
-public:
-    VkImage Raw;
-    ImageDesc Desc;
-    
-    Image(VkImage raw, const ImageDesc& desc);
-    ~Image();
-    
-    VkImageView GetView(Device& device, const struct ImageViewDesc& desc);
-    VkImageViewCreateInfo GetViewDesc(const struct ImageViewDesc& desc) const;
-
-private:
-    std::unordered_map<struct ImageViewDesc, VkImageView> views;
-    mutable std::mutex viewsMutex;
-    
-    static VkImageViewCreateInfo CreateViewDescImpl(const struct ImageViewDesc& desc, const ImageDesc& imageDesc);
 };
 
 struct ImageViewDesc {
@@ -103,8 +100,38 @@ struct ImageViewDesc {
 
     bool operator==(const ImageViewDesc& other) const;
 
+    struct Hash {
+        std::size_t operator()(const ImageViewDesc& desc) const noexcept {
+            std::size_t h1 = desc.ViewType.has_value() ? std::hash<uint32_t>{}(static_cast<uint32_t>(desc.ViewType.value())) : 0;
+            std::size_t h2 = desc.Format.has_value() ? std::hash<uint32_t>{}(static_cast<uint32_t>(desc.Format.value())) : 0;
+            std::size_t h3 = std::hash<uint32_t>{}(desc.AspectMask);
+            std::size_t h4 = std::hash<uint32_t>{}(desc.BaseMipLevel);
+            std::size_t h5 = desc.LevelCount.has_value() ? std::hash<uint32_t>{}(desc.LevelCount.value()) : 0;
+
+            return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4);
+        }
+    };
+
     class Builder;
     static Builder CreateBuilder();
+};
+
+class Image {
+public:
+    VkImage Raw;
+    ImageDesc Desc;
+
+    Image(VkImage raw, const ImageDesc& desc);
+    ~Image();
+
+    VkImageView GetView(Device& device, const ImageViewDesc& desc);
+    VkImageViewCreateInfo GetViewDesc(const ImageViewDesc& desc) const;
+
+private:
+    std::unordered_map<ImageViewDesc, VkImageView, ImageViewDesc::Hash> views;
+    mutable std::mutex viewsMutex;
+
+    static VkImageViewCreateInfo CreateViewDescImpl(const ImageViewDesc& desc, const ImageDesc& imageDesc);
 };
 
 class ImageViewDesc::Builder {
@@ -121,19 +148,8 @@ private:
     ImageViewDesc desc;
 };
 
-VkImageViewType ConvertImageTypeToViewType(ImageType imageType);
-VkImageCreateInfo GetImageCreateInfo(const ImageDesc& desc, bool initialData);
-
 } // namespace tekki::backend::vulkan
 
-namespace std {
-    template<>
-    struct hash<tekki::backend::vulkan::ImageDesc> {
-        size_t operator()(const tekki::backend::vulkan::ImageDesc& desc) const;
-    };
+VkImageViewType ConvertImageTypeToViewType(tekki::backend::vulkan::ImageType imageType);
+VkImageCreateInfo GetImageCreateInfo(const tekki::backend::vulkan::ImageDesc& desc, bool initialData);
 
-    template<>
-    struct hash<tekki::backend::vulkan::ImageViewDesc> {
-        size_t operator()(const tekki::backend::vulkan::ImageViewDesc& desc) const;
-    };
-}

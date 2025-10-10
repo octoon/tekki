@@ -14,7 +14,7 @@ std::vector<VkSurfaceFormatKHR> Swapchain::EnumerateSurfaceFormats(
 ) {
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(
-        device->GetPhysicalDevice(),
+        device->PhysicalDevice()->raw,
         surface.GetRaw(),
         &formatCount,
         nullptr
@@ -22,7 +22,7 @@ std::vector<VkSurfaceFormatKHR> Swapchain::EnumerateSurfaceFormats(
 
     std::vector<VkSurfaceFormatKHR> formats(formatCount);
     vkGetPhysicalDeviceSurfaceFormatsKHR(
-        device->GetPhysicalDevice(),
+        device->PhysicalDevice()->raw,
         surface.GetRaw(),
         &formatCount,
         formats.data()
@@ -35,29 +35,26 @@ Swapchain::Swapchain(
     const std::shared_ptr<Device>& device,
     const std::shared_ptr<Surface>& surface,
     const SwapchainDesc& desc
-) : Device(device), SurfaceRef(surface), Desc(desc), NextSemaphore(0) {
+) : device_(device), surfaceRef_(surface), Desc(desc), NextSemaphore(0) {
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-        device->GetPhysicalDevice(),
+        device->PhysicalDevice()->raw,
         surface->GetRaw(),
         &surfaceCapabilities
     );
 
-    Raw = CreateSwapchain(device, surface, desc, surfaceCapabilities);
+    Raw = CreateSwapchain(device_, surfaceRef_, desc, surfaceCapabilities);
     auto vkImages = GetSwapchainImages(Raw);
     
     Images.reserve(vkImages.size());
     for (auto vkImage : vkImages) {
-        ImageDesc imageDesc{
+        ImageDesc imageDesc(
+            desc.Format.format,
             ImageType::Tex2d,
-            VK_IMAGE_USAGE_STORAGE_BIT,
-            0,
-            VK_FORMAT_B8G8R8A8_UNORM,
-            {desc.Dims.width, desc.Dims.height, 0},
-            VK_IMAGE_TILING_OPTIMAL,
-            1,
-            1
-        };
+            {desc.Dims.width, desc.Dims.height, 1}
+        );
+        imageDesc.WithUsage(VK_IMAGE_USAGE_STORAGE_BIT);
+        imageDesc.WithTiling(VK_IMAGE_TILING_OPTIMAL);
         Images.push_back(std::make_shared<Image>(vkImage, imageDesc));
     }
 
@@ -67,13 +64,13 @@ Swapchain::Swapchain(
 
 Swapchain::~Swapchain() {
     for (auto semaphore : AcquireSemaphores) {
-        vkDestroySemaphore(Device->GetRaw(), semaphore, nullptr);
+        vkDestroySemaphore(device_->GetRaw(), semaphore, nullptr);
     }
     for (auto semaphore : RenderingFinishedSemaphores) {
-        vkDestroySemaphore(Device->GetRaw(), semaphore, nullptr);
+        vkDestroySemaphore(device_->GetRaw(), semaphore, nullptr);
     }
     if (Raw != VK_NULL_HANDLE) {
-        vkDestroySwapchainKHR(Device->GetRaw(), Raw, nullptr);
+        vkDestroySwapchainKHR(device_->GetRaw(), Raw, nullptr);
     }
 }
 
@@ -87,7 +84,7 @@ SwapchainImage Swapchain::AcquireNextImage() {
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
-        Device->GetRaw(),
+        device_->GetRaw(),
         Raw,
         UINT64_MAX,
         acquireSemaphore,
@@ -124,7 +121,7 @@ void Swapchain::PresentImage(const SwapchainImage& image) {
     presentInfo.pSwapchains = &Raw;
     presentInfo.pImageIndices = &image.ImageIndex;
 
-    VkResult result = vkQueuePresentKHR(Device->GetUniversalQueue(), &presentInfo);
+    VkResult result = vkQueuePresentKHR(device_->GetUniversalQueue().Raw, &presentInfo);
     
     if (result != VK_SUCCESS && result != VK_ERROR_OUT_OF_DATE_KHR && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Could not present image");
@@ -162,14 +159,14 @@ VkSwapchainKHR Swapchain::CreateSwapchain(
 
     uint32_t presentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(
-        device->GetPhysicalDevice(),
+        device->PhysicalDevice()->raw,
         surface->GetRaw(),
         &presentModeCount,
         nullptr
     );
     std::vector<VkPresentModeKHR> presentModes(presentModeCount);
     vkGetPhysicalDeviceSurfacePresentModesKHR(
-        device->GetPhysicalDevice(),
+        device->PhysicalDevice()->raw,
         surface->GetRaw(),
         &presentModeCount,
         presentModes.data()
@@ -216,21 +213,21 @@ VkSwapchainKHR Swapchain::CreateSwapchain(
 
 std::vector<VkImage> Swapchain::GetSwapchainImages(VkSwapchainKHR swapchain) {
     uint32_t imageCount;
-    vkGetSwapchainImagesKHR(Device->GetRaw(), swapchain, &imageCount, nullptr);
-    
+    vkGetSwapchainImagesKHR(device_->GetRaw(), swapchain, &imageCount, nullptr);
+
     std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(Device->GetRaw(), swapchain, &imageCount, images.data());
-    
+    vkGetSwapchainImagesKHR(device_->GetRaw(), swapchain, &imageCount, images.data());
+
     return images;
 }
 
 std::vector<VkSemaphore> Swapchain::CreateSemaphores(const std::shared_ptr<Device>& device, size_t count) {
     std::vector<VkSemaphore> semaphores;
     semaphores.reserve(count);
-    
+
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    
+
     for (size_t i = 0; i < count; ++i) {
         VkSemaphore semaphore;
         if (vkCreateSemaphore(device->GetRaw(), &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS) {
@@ -238,7 +235,7 @@ std::vector<VkSemaphore> Swapchain::CreateSemaphores(const std::shared_ptr<Devic
         }
         semaphores.push_back(semaphore);
     }
-    
+
     return semaphores;
 }
 

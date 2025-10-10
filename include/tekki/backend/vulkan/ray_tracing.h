@@ -38,7 +38,7 @@ struct RayTracingGeometryDesc {
 };
 
 struct RayTracingInstanceDesc {
-    std::shared_ptr<class RayTracingAcceleration> Blas;
+    std::shared_ptr<RayTracingAcceleration> Blas;
     glm::mat4 Transformation;
     uint32_t MeshIndex;
 };
@@ -144,25 +144,6 @@ struct GeometryInstance {
 };
 #pragma pack(pop)
 
-class Device {
-public:
-    std::shared_ptr<RayTracingAccelerationScratchBuffer> CreateRayTracingAccelerationScratchBuffer();
-    
-    std::shared_ptr<RayTracingAcceleration> CreateRayTracingBottomAcceleration(const RayTracingBottomAccelerationDesc& desc);
-    
-    std::shared_ptr<RayTracingAcceleration> CreateRayTracingTopAcceleration(const RayTracingTopAccelerationDesc& desc, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
-    
-    VkDeviceAddress FillRayTracingInstanceBuffer(DynamicConstants& dynamicConstants, const std::vector<RayTracingInstanceDesc>& instances);
-    
-    void RebuildRayTracingTopAcceleration(VkCommandBuffer commandBuffer, VkDeviceAddress instanceBufferAddress, size_t instanceCount, const std::shared_ptr<RayTracingAcceleration>& tlas, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
-
-private:
-    std::shared_ptr<RayTracingAcceleration> CreateRayTracingAcceleration(VkAccelerationStructureTypeKHR type, VkAccelerationStructureBuildGeometryInfoKHR geometryInfo, const std::vector<VkAccelerationStructureBuildRangeInfoKHR>& buildRangeInfos, const std::vector<uint32_t>& maxPrimitiveCounts, size_t preallocateBytes, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
-    
-    void RebuildRayTracingAcceleration(VkCommandBuffer commandBuffer, VkAccelerationStructureBuildGeometryInfoKHR geometryInfo, const std::vector<VkAccelerationStructureBuildRangeInfoKHR>& buildRangeInfos, const std::vector<uint32_t>& maxPrimitiveCounts, const std::shared_ptr<RayTracingAcceleration>& acceleration, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
-    
-    std::shared_ptr<RayTracingShaderTable> CreateRayTracingShaderTable(const RayTracingShaderTableDesc& desc, VkPipeline pipeline);
-};
 
 std::shared_ptr<RayTracingPipeline> CreateRayTracingPipeline(const std::shared_ptr<Device>& device, const std::vector<PipelineShader<std::vector<uint32_t>>>& shaders, const RayTracingPipelineDesc& desc);
 

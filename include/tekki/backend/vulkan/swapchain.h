@@ -67,8 +67,8 @@ private:
     std::vector<VkSemaphore> RenderingFinishedSemaphores;
     size_t NextSemaphore;
 
-    std::shared_ptr<Device> Device;
-    std::shared_ptr<Surface> SurfaceRef;
+    std::shared_ptr<Device> device_;
+    std::shared_ptr<Surface> surfaceRef_;
 
     VkSwapchainKHR CreateSwapchain(
         const std::shared_ptr<Device>& device,

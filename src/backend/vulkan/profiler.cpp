@@ -29,19 +29,19 @@ std::unique_ptr<tekki::VulkanBuffer> ProfilerBackend::CreateQueryResultBuffer(si
     allocDesc.linear = true; // Buffers are always linear
 
     auto allocation = allocator_->Allocate(allocDesc);
-    if (!allocation) {
+    if (allocation.IsNull()) {
         vkDestroyBuffer(device_, buffer, nullptr);
         throw std::runtime_error("Failed to allocate buffer memory");
     }
 
     // 绑定内存到 buffer
-    result = vkBindBufferMemory(device_, buffer, allocation.value().Memory(), allocation.value().Offset());
+    result = vkBindBufferMemory(device_, buffer, allocation.Memory(), allocation.Offset());
     if (result != VK_SUCCESS) {
         vkDestroyBuffer(device_, buffer, nullptr);
         throw std::runtime_error("Failed to bind buffer memory");
     }
 
-    return std::make_unique<ProfilerBuffer>(buffer, std::move(allocation.value()));
+    return std::make_unique<ProfilerBuffer>(buffer, std::move(allocation));
 }
 
 } // namespace tekki::backend::vulkan

@@ -17,7 +17,7 @@ class RenderBackend {
 public:
     std::shared_ptr<Device> Device;
     std::shared_ptr<Surface> Surface;
-    Swapchain Swapchain;
+    std::shared_ptr<Swapchain> Swapchain;
 
     struct Config {
         glm::u32vec2 SwapchainExtent;

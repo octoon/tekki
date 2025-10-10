@@ -1,45 +1,3 @@
-# GPU Allocator library
-add_library(tekki-gpu-allocator STATIC
-    gpu_allocator/result.cpp
-    gpu_allocator/allocator.cpp
-    gpu_allocator/allocator/dedicated_block_allocator.cpp
-    gpu_allocator/allocator/free_list_allocator.cpp
-    gpu_allocator/vulkan/allocator.cpp
-)
-
-target_include_directories(tekki-gpu-allocator
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/gpu_allocator
-)
-
-target_link_libraries(tekki-gpu-allocator
-    PUBLIC
-        tekki_compile_options
-        Vulkan::Vulkan
-        spdlog::spdlog
-)
-
-# GPU Profiler library
-add_library(tekki-gpu-profiler STATIC
-    gpu_profiler/gpu_profiler.cpp
-    gpu_profiler/backend/vulkan.cpp
-)
-
-target_include_directories(tekki-gpu-profiler
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
-
-target_link_libraries(tekki-gpu-profiler
-    PUBLIC
-        tekki_compile_options
-        Vulkan::Vulkan
-)
-
 # Backend library - Vulkan wrapper and GPU management
 add_library(tekki-backend STATIC
     # Backend core
@@ -57,6 +15,7 @@ add_library(tekki-backend STATIC
     # Vulkan backend
     backend/vulkan/barrier.cpp
     backend/vulkan/buffer.cpp
+    backend/vulkan/debug_utils.cpp
     backend/vulkan/device.cpp
     backend/vulkan/error.cpp
     backend/vulkan/image.cpp
@@ -81,6 +40,7 @@ target_link_libraries(tekki-backend
         tekki_compile_options
         tekki-gpu-allocator
         tekki-gpu-profiler
+        hassle
         Vulkan::Vulkan
         spirv-cross-core
         SPIRV-Tools-static
@@ -89,6 +49,7 @@ target_link_libraries(tekki-backend
         fmt::fmt
         spdlog::spdlog
         nlohmann_json::nlohmann_json
+        glfw
 )
 
 # Render graph library

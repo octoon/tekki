@@ -27,7 +27,6 @@ public:
     VkSurfaceKHR* GetRawPtr() { return &raw; }
     const VkSurfaceKHR* GetRawPtr() const { return &raw; }
 
-private:
     Surface(VkSurfaceKHR surface, VkInstance instance);
 
     VkSurfaceKHR raw;

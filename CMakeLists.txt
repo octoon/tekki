@@ -60,6 +60,7 @@ target_compile_definitions(tekki_compile_options INTERFACE
 )
 
 # Subdirectories
+add_subdirectory(third_party)
 add_subdirectory(src)
 
 # Tests subdirectory (optional)

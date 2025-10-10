@@ -21,7 +21,7 @@ public:
     void InsertBuffer(std::shared_ptr<vulkan::Buffer> buffer);
 
 private:
-    std::unordered_map<vulkan::ImageDesc, std::vector<std::shared_ptr<vulkan::Image>>> images;
+    std::unordered_map<vulkan::ImageDesc, std::vector<std::shared_ptr<vulkan::Image>>, vulkan::ImageDesc::Hash> images;
     std::unordered_map<vulkan::BufferDesc, std::vector<std::shared_ptr<vulkan::Buffer>>> buffers;
 };
 

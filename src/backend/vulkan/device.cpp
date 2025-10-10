@@ -4,15 +4,18 @@
 #include <optional>
 #include <string>
 #include <unordered_set>
+#include <format>
 #include <glm/glm.hpp>
 #include "vulkan/vulkan.h"
-#include "gpu_allocator.h"
-#include "gpu_profiler.h"
-#include "core/result.h"
-#include "vulkan/buffer.h"
-#include "vulkan/physical_device.h"
-#include "vulkan/profiler.h"
-#include "vulkan/instance.h"
+#include "tekki/gpu_allocator/vulkan/allocator.h"
+#include "tekki/gpu_profiler/gpu_profiler.h"
+#include "tekki/core/result.h"
+#include "tekki/backend/vulkan/buffer.h"
+#include "tekki/backend/vulkan/physical_device.h"
+#include "tekki/backend/vulkan/profiler.h"
+#include "tekki/backend/vulkan/instance.h"
+#include "tekki/backend/vulkan/error.h"
+#include "tekki/backend/vulkan/debug_utils.h"
 
 namespace tekki::backend::vulkan {
 
@@ -46,24 +49,19 @@ CommandBuffer::CommandBuffer(VkDevice device, const QueueFamily& queueFamily) {
     }
 }
 
-DeviceFrame::DeviceFrame(const PhysicalDevice* pdevice, VkDevice device, 
-                        gpu_allocator::VulkanAllocator* globalAllocator, 
+DeviceFrame::DeviceFrame(const PhysicalDevice* pdevice, VkDevice device,
+                        tekki::Allocator* globalAllocator,
                         const QueueFamily& queueFamily)
     : MainCommandBuffer(device, queueFamily)
-    , PresentationCommandBuffer(device, queueFamily) {
-    // TODO: Initialize linear allocator pool if needed
-    SwapchainAcquiredSemaphore = std::nullopt;
-    RenderingCompleteSemaphore = std::nullopt;
-    
-    // Initialize profiler data
-    ProfilerData = VkProfilerData(
+    , PresentationCommandBuffer(device, queueFamily)
+    , ProfilerData(device, *std::make_unique<ProfilerBackend>(
         device,
-        ProfilerBackend(
-            device,
-            globalAllocator,
-            pdevice->properties.limits.timestampPeriod
-        )
-    );
+        globalAllocator,
+        pdevice->properties.limits.timestampPeriod
+    ))
+    , SwapchainAcquiredSemaphore(std::nullopt)
+    , RenderingCompleteSemaphore(std::nullopt) {
+    // TODO: Initialize linear allocator pool if needed
 }
 
 void PendingResourceReleases::ReleaseAll(VkDevice device) {
@@ -115,11 +113,50 @@ std::unordered_map<SamplerDesc, VkSampler, SamplerDescHash> Device::CreateSample
     return result;
 }
 
-Buffer Device::CreateBufferImpl(VkDevice device, gpu_allocator::VulkanAllocator* allocator, 
+Buffer Device::CreateBufferImpl(VkDevice device, tekki::Allocator* allocator,
                                const BufferDesc& desc, const std::string& name) {
-    // Implementation depends on BufferDesc and Buffer constructors
-    // This is a placeholder - actual implementation would create the buffer using the allocator
-    return Buffer(device, allocator, desc, name);
+    (void)name; // Mark as unused for now
+    // Create buffer using the allocator
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = desc.Size;
+    bufferInfo.usage = desc.Usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkBuffer buffer;
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create buffer");
+    }
+
+    // Allocate memory for the buffer
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+
+    tekki::AllocationCreateDesc allocDesc{};
+    allocDesc.requirements = memRequirements;
+    allocDesc.location = desc.MemoryLocation;
+    allocDesc.linear = false;
+    allocDesc.allocation_scheme = tekki::AllocationScheme::GpuAllocatorManaged;
+
+    auto allocation = allocator->Allocate(allocDesc);
+    if (allocation.IsNull()) {
+        vkDestroyBuffer(device, buffer, nullptr);
+        throw std::runtime_error("Failed to allocate buffer memory");
+    }
+
+    // Bind memory to buffer
+    if (vkBindBufferMemory(device, buffer, allocation.Memory(), allocation.Offset()) != VK_SUCCESS) {
+        vkDestroyBuffer(device, buffer, nullptr);
+        allocator->Free(std::move(allocation));
+        throw std::runtime_error("Failed to bind buffer memory");
+    }
+
+    // Construct and return Buffer struct
+    Buffer result;
+    result.Raw = buffer;
+    result.Desc = desc;
+    result.Allocation = std::move(allocation);
+    return result;
 }
 
 void Device::ReportError(const std::exception& error) const {
@@ -128,8 +165,18 @@ void Device::ReportError(const std::exception& error) const {
     throw error;
 }
 
-std::shared_ptr<Device> Device::Create(const std::shared_ptr<PhysicalDevice>& pdevice) {
-    auto supportedExtensions = pdevice->GetSupportedExtensions();
+std::shared_ptr<Device> Device::Create(const std::shared_ptr<tekki::backend::vulkan::PhysicalDevice>& pdevice) {
+    // Query supported device extensions
+    uint32_t extensionCount = 0;
+    vkEnumerateDeviceExtensionProperties(pdevice->raw, nullptr, &extensionCount, nullptr);
+
+    std::vector<VkExtensionProperties> extensionProperties(extensionCount);
+    vkEnumerateDeviceExtensionProperties(pdevice->raw, nullptr, &extensionCount, extensionProperties.data());
+
+    std::unordered_set<std::string> supportedExtensions;
+    for (const auto& ext : extensionProperties) {
+        supportedExtensions.insert(ext.extensionName);
+    }
 
     std::vector<const char*> deviceExtensionNames = {
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
@@ -142,6 +189,7 @@ std::shared_ptr<Device> Device::Create(const std::shared_ptr<PhysicalDevice>& pd
         VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
         VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME,
         VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,  // Add debug utils extension
     };
 
     // Add DLSS extensions if enabled
@@ -314,16 +362,17 @@ std::shared_ptr<Device> Device::Create(const std::shared_ptr<PhysicalDevice>& pd
     }
 
     // Create global allocator
-    gpu_allocator::VulkanAllocatorCreateDesc allocatorDesc{};
-    allocatorDesc.instance = pdevice->instance->raw;
+    tekki::AllocatorCreateDesc allocatorDesc{};
+    allocatorDesc.instance = pdevice->instance->GetRaw();
     allocatorDesc.device = rawDevice;
-    allocatorDesc.physicalDevice = pdevice->raw;
-    allocatorDesc.debugSettings.logLeaksOnShutdown = false;
-    allocatorDesc.debugSettings.logMemoryInformation = true;
-    allocatorDesc.debugSettings.logAllocations = true;
-    allocatorDesc.bufferDeviceAddress = true;
+    allocatorDesc.physical_device = pdevice->raw;
+    allocatorDesc.debug_settings.log_leaks_on_shutdown = false;
+    allocatorDesc.debug_settings.log_memory_information = true;
+    allocatorDesc.debug_settings.log_allocations = true;
+    allocatorDesc.buffer_device_address = true;
+    // TODO: Set allocation_sizes if needed
 
-    auto globalAllocator = std::make_shared<gpu_allocator::VulkanAllocator>(allocatorDesc);
+    auto globalAllocator = std::make_shared<tekki::Allocator>(allocatorDesc);
 
     // Get universal queue
     VkQueue universalQueueRaw;
@@ -332,38 +381,38 @@ std::shared_ptr<Device> Device::Create(const std::shared_ptr<PhysicalDevice>& pd
     Queue universalQueue{universalQueueRaw, *universalQueueFamily};
 
     // Create device frames
-    auto frame0 = std::make_shared<DeviceFrame>(pdevice.get(), rawDevice, globalAllocator.get(), universalQueue.family);
-    auto frame1 = std::make_shared<DeviceFrame>(pdevice.get(), rawDevice, globalAllocator.get(), universalQueue.family);
+    auto frame0 = std::make_shared<DeviceFrame>(pdevice.get(), rawDevice, globalAllocator.get(), universalQueue.Family);
+    auto frame1 = std::make_shared<DeviceFrame>(pdevice.get(), rawDevice, globalAllocator.get(), universalQueue.Family);
 
     auto immutableSamplers = CreateSamplers(rawDevice);
-    CommandBuffer setupCb(rawDevice, universalQueue.family);
+    CommandBuffer setupCb(rawDevice, universalQueue.Family);
 
     // Load ray tracing extensions if enabled
     VkAccelerationStructureKHR accelerationStructureExt = VK_NULL_HANDLE;
-    VkRayTracingPipelineKHR rayTracingPipelineExt = VK_NULL_HANDLE;
+    void* rayTracingPipelineExt = nullptr;
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{};
 
     if (rayTracingEnabled) {
         // Note: In C++ we'd typically use a library like Volk or manually load extensions
         // This is a simplified representation
         accelerationStructureExt = VK_NULL_HANDLE; // Would be properly initialized
-        rayTracingPipelineExt = VK_NULL_HANDLE; // Would be properly initialized
-        
+        rayTracingPipelineExt = nullptr; // Would be properly initialized
+
         VkPhysicalDeviceProperties2 properties2{};
         properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
         properties2.pNext = &rayTracingPipelineProperties;
         rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-        
+
         vkGetPhysicalDeviceProperties2(pdevice->raw, &properties2);
     }
 
     // Create crash tracking buffer
     BufferDesc crashBufferDesc;
-    crashBufferDesc.size = 4;
-    crashBufferDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    crashBufferDesc.memoryUsage = gpu_allocator::MemoryUsage::GPU_TO_CPU;
+    crashBufferDesc.Size = 4;
+    crashBufferDesc.Usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    crashBufferDesc.MemoryLocation = tekki::MemoryLocation::GpuToCpu;
     
-    auto crashTrackingBuffer = CreateBufferImpl(rawDevice, globalAllocator.get(), crashBufferDesc, "crash tracking buffer");
+    Buffer crashTrackingBuffer = CreateBufferImpl(rawDevice, globalAllocator.get(), crashBufferDesc, "crash tracking buffer");
 
     auto device = std::make_shared<Device>();
     device->raw_ = rawDevice;
@@ -373,7 +422,8 @@ std::shared_ptr<Device> Device::Create(const std::shared_ptr<PhysicalDevice>& pd
     device->globalAllocatorMutex_ = std::make_shared<std::mutex>();
     device->globalAllocator_ = globalAllocator;
     device->immutableSamplers_ = immutableSamplers;
-    device->setupCb_ = std::move(setupCb);
+    // Note: setupCb_ is already initialized in Device class, reuse the one we created
+    // device->setupCb_ is default initialized
     device->crashTrackingBuffer_ = std::move(crashTrackingBuffer);
     device->crashMarkerNames_ = CrashMarkerNames();
     device->accelerationStructureExt_ = accelerationStructureExt;
@@ -382,6 +432,16 @@ std::shared_ptr<Device> Device::Create(const std::shared_ptr<PhysicalDevice>& pd
     device->frames_[0] = frame0;
     device->frames_[1] = frame1;
     device->rayTracingEnabled_ = rayTracingEnabled;
+
+    // Create DebugUtils if the extension is supported
+    if (supportedExtensions.find(VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedExtensions.end()) {
+        try {
+            device->debugUtils_ = std::make_unique<class DebugUtils>(rawDevice, pdevice->instance->GetRaw());
+        } catch ([[maybe_unused]] const std::exception& e) {
+            // If debug utils creation fails, just log and continue without it
+            // This is not a critical error
+        }
+    }
 
     return device;
 }
@@ -448,42 +508,47 @@ void Device::DeferRelease(const DeferredRelease& resource) {
 
 void Device::WithSetupCb(const std::function<void(VkCommandBuffer)>& callback) {
     std::lock_guard lock(setupCbMutex_);
-    
+
+    // Create setup command buffer if it doesn't exist
+    if (!setupCb_.has_value()) {
+        setupCb_.emplace(raw_, universalQueue_.Family);
+    }
+
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    
-    if (vkBeginCommandBuffer(setupCb_.Raw, &beginInfo) != VK_SUCCESS) {
+
+    if (vkBeginCommandBuffer(setupCb_->Raw, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error("Failed to begin command buffer");
     }
-    
-    callback(setupCb_.Raw);
-    
-    if (vkEndCommandBuffer(setupCb_.Raw) != VK_SUCCESS) {
+
+    callback(setupCb_->Raw);
+
+    if (vkEndCommandBuffer(setupCb_->Raw) != VK_SUCCESS) {
         throw std::runtime_error("Failed to end command buffer");
     }
-    
+
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &setupCb_.Raw;
-    
+    submitInfo.pCommandBuffers = &setupCb_->Raw;
+
     if (vkQueueSubmit(universalQueue_.Raw, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit command buffer");
     }
-    
+
     if (vkDeviceWaitIdle(raw_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to wait for device idle");
     }
 }
 
-void Device::FinishFrame(const std::shared_ptr<DeviceFrame>& frame) {
-    // Release the frame reference
-    frame.reset();
-    
+void Device::FinishFrame([[maybe_unused]] const std::shared_ptr<DeviceFrame>& frame) {
+    // Release the frame reference - just let the shared_ptr go out of scope
+    // frame.reset() is not needed as we're just releasing our reference
+
     std::lock_guard lock0(frameMutexes_[0]);
     std::lock_guard lock1(frameMutexes_[1]);
-    
+
     // Swap frames
     std::swap(frames_[0], frames_[1]);
 }
@@ -492,8 +557,8 @@ const PhysicalDevice* Device::PhysicalDevice() const {
     return pdevice_.get();
 }
 
-const DebugUtils* Device::DebugUtils() const {
-    return instance_->debugUtils.get();
+const class DebugUtils* Device::DebugUtils() const {
+    return debugUtils_.get();
 }
 
 uint32_t Device::MaxBindlessDescriptorCount() const {
@@ -503,6 +568,54 @@ uint32_t Device::MaxBindlessDescriptorCount() const {
 
 bool Device::RayTracingEnabled() const {
     return rayTracingEnabled_;
+}
+
+void Device::RecordCrashMarker([[maybe_unused]] const CommandBuffer& cb, const std::string& name) {
+    std::lock_guard<std::mutex> lock(crashMarkerNamesMutex_);
+    [[maybe_unused]] uint32_t idx = crashMarkerNames_.InsertName(name);
+
+    try {
+        // TODO: Implement crash marker recording
+        // Raw.cmd_fill_buffer(cb.Raw, crashTrackingBuffer_.GetRaw(), 0, 4, idx);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::format("Failed to record crash marker: {}", e.what()));
+    }
+}
+
+void Device::ReportError(const BackendError& err) {
+    if (err.GetType() == BackendErrorType::Vulkan &&
+        err.GetVulkanResult() == VK_ERROR_DEVICE_LOST) {
+
+        // Something went very wrong. Find the last marker which was successfully written
+        // to the crash tracking buffer, and report its corresponding name.
+        auto mappedSlice = crashTrackingBuffer_.Allocation.MappedSlice();
+        if (!mappedSlice) {
+            throw std::runtime_error("Failed to get mapped slice from crash tracking buffer");
+        }
+        uint32_t lastMarker = *reinterpret_cast<const uint32_t*>(mappedSlice);
+
+        std::lock_guard<std::mutex> lock(crashMarkerNamesMutex_);
+        std::string lastMarkerName = crashMarkerNames_.GetName(lastMarker);
+
+        std::string msg;
+        if (!lastMarkerName.empty()) {
+            msg = std::format(
+                "The GPU device has been lost. This is usually due to an infinite loop in a shader.\n"
+                "The last crash marker was: {} => {}. The problem most likely exists directly after.",
+                lastMarker, lastMarkerName
+            );
+        } else {
+            msg = std::format(
+                "The GPU device has been lost. This is usually due to an infinite loop in a shader.\n"
+                "The last crash marker was: {}. The problem most likely exists directly after.",
+                lastMarker
+            );
+        }
+
+        throw std::runtime_error(msg);
+    }
+
+    throw err;
 }
 
 } // namespace tekki::backend::vulkan

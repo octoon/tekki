@@ -14,14 +14,42 @@
 
 namespace tekki::backend::vulkan {
 
+// Forward declarations
+class Device;
+class RenderPass;
+
+// SPIRV reflection types (replacing rspirv_reflect)
+enum class DescriptorType {
+    SAMPLER,
+    COMBINED_IMAGE_SAMPLER,
+    SAMPLED_IMAGE,
+    STORAGE_IMAGE,
+    UNIFORM_TEXEL_BUFFER,
+    STORAGE_TEXEL_BUFFER,
+    UNIFORM_BUFFER,
+    STORAGE_BUFFER,
+    UNIFORM_BUFFER_DYNAMIC,
+    STORAGE_BUFFER_DYNAMIC,
+    INPUT_ATTACHMENT,
+    ACCELERATION_STRUCTURE_KHR
+};
+
+enum class DescriptorDimensionality {
+    Single,
+    RuntimeArray
+};
+
+struct DescriptorInfo {
+    DescriptorType ty;
+    DescriptorDimensionality dimensionality;
+    std::string name;
+};
+
 constexpr size_t MAX_DESCRIPTOR_SETS = 4;
 constexpr size_t MAX_COLOR_ATTACHMENTS = 8;
 
-using DescriptorSetLayout = std::unordered_map<uint32_t, rspirv_reflect::DescriptorInfo>;
+using DescriptorSetLayout = std::unordered_map<uint32_t, DescriptorInfo>;
 using StageDescriptorSetLayouts = std::unordered_map<uint32_t, DescriptorSetLayout>;
-
-class Device;
-class RenderPass;
 
 struct ShaderPipelineCommon {
     VkPipelineLayout PipelineLayout;

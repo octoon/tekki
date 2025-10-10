@@ -432,9 +432,7 @@ void ExecutingRenderGraph::RecordPassCb(const RecordedPass& pass, ResourceRegist
         params.Device->RecordCrashMarker(cb, "begin render pass " + pass.Name);
         
         if (auto debugUtils = params.Device->DebugUtils()) {
-            vk::DebugUtilsLabelEXT label;
-            label.pLabelName = pass.Name.c_str();
-            debugUtils->CmdBeginDebugUtilsLabel(cb.Raw, label);
+            debugUtils->CmdBeginDebugUtilsLabel(cb.Raw, pass.Name);
         }
         
         // GPU profiling scope would go here

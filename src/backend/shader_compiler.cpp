@@ -1,10 +1,8 @@
 #include "tekki/backend/shader_compiler.h"
 #include "tekki/backend/file.h"
-#include <hassel_rs.hpp>
-#include <rspirv/dr/dr.h>
-#include <rspirv/binary/parser.h>
-#include <shader_prepper.hpp>
+#include <hassle/utils.h>
 #include <glm/glm.hpp>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
@@ -44,32 +42,68 @@ CompiledShader ShaderCompiler::Compile(const CompileShader& compileInfo) {
 }
 
 std::vector<uint8_t> ShaderCompiler::CompileGenericShaderHlslImpl(
-    const std::string& name, 
-    const std::string& source, 
+    const std::string& name,
+    const std::string& source,
     const std::string& target_profile) {
-    
+
     auto t0 = std::chrono::steady_clock::now();
-    
-    std::vector<std::string> args = {
-        "-spirv",
-        "-fspv-target-env=vulkan1.2",
-        "-WX",
-        "-Ges",
-        "-HV 2021"
-    };
-    
-    auto spirv = hassle_rs::compile_hlsl(
-        name,
-        source,
-        "main",
-        target_profile,
-        args,
-        std::vector<std::string>()
-    );
-    
-    auto elapsed = std::chrono::steady_clock::now() - t0;
-    
-    return spirv;
+
+    try {
+        // Determine entry point based on target profile
+        std::string entry_point = "main";
+        if (target_profile.find("lib_") == 0) {
+            // Ray tracing library doesn't need an entry point
+            entry_point = "";
+        }
+
+        // Set up DXC compilation arguments for SPIR-V generation
+        std::vector<std::string> args = {
+            "-spirv",                       // Generate SPIR-V
+            "-fspv-target-env=vulkan1.2",   // Target Vulkan 1.2
+            "-WX",                          // Warnings as errors
+            "-Ges",                         // Enable strict mode
+            "-HV", "2021",                  // HLSL version 2021
+        };
+
+        // Additional defines (if any)
+        std::vector<std::pair<std::string, std::optional<std::string>>> defines;
+
+        // Compile the shader using hassle
+        auto result = hassle::CompileHlsl(
+            name,           // Source name
+            source,         // Shader source code
+            entry_point,    // Entry point
+            target_profile, // Target profile (e.g., "cs_6_4", "lib_6_4")
+            args,           // Compiler arguments
+            defines         // Preprocessor defines
+        );
+
+        // Log warnings if any
+        if (result.messages.has_value() && !result.messages->empty()) {
+            spdlog::warn("Shader compilation warnings for '{}': {}", name, *result.messages);
+        }
+
+        auto elapsed = std::chrono::steady_clock::now() - t0;
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        spdlog::info("Compiled shader '{}' in {} ms", name, elapsed_ms);
+
+        return result.blob;
+
+    } catch (const hassle::OperationError& e) {
+        auto elapsed = std::chrono::steady_clock::now() - t0;
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+
+        spdlog::error("Shader compilation failed for '{}' after {} ms", name, elapsed_ms);
+        spdlog::error("Error message: {}", e.message);
+
+        throw std::runtime_error("HLSL compilation failed for shader '" + name + "': " + e.message);
+    } catch (const std::exception& e) {
+        auto elapsed = std::chrono::steady_clock::now() - t0;
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+
+        spdlog::error("Shader compilation failed for '{}' after {} ms: {}", name, elapsed_ms, e.what());
+        throw;
+    }
 }
 
 RayTracingShader RayTracingShaderCompiler::Compile(const CompileRayTracingShader& compileInfo) {
@@ -125,25 +159,11 @@ std::string ShaderIncludeProvider::GetInclude(const std::string& path, const std
 }
 
 glm::uvec3 GetComputeShaderLocalSizeFromSpirv(const std::vector<uint32_t>& spirv) {
-    rspirv::dr::Loader loader;
-    rspirv::binary::parse_words(spirv.data(), spirv.size(), &loader);
-    auto module = loader.module();
-
-    for (const auto& inst : module.global_instructions()) {
-        if (inst.opcode() == spv::Op::OpExecutionMode) {
-            const auto& operands = inst.operands();
-            if (operands.size() >= 5) {
-                uint32_t x = operands[2].AsLiteralInteger();
-                uint32_t y = operands[3].AsLiteralInteger();
-                uint32_t z = operands[4].AsLiteralInteger();
-                return glm::uvec3(x, y, z);
-            } else {
-                throw std::runtime_error("Could not parse the ExecutionMode SPIR-V op");
-            }
-        }
-    }
-
-    throw std::runtime_error("Could not find a ExecutionMode SPIR-V op");
+    // TODO: Implement SPIR-V parsing to extract compute shader local size
+    // This requires SPIRV-Reflect or similar library
+    // For now, return a default work group size
+    throw std::runtime_error("SPIR-V reflection not yet implemented - requires SPIRV-Reflect integration");
+    return glm::uvec3(1, 1, 1);
 }
 
 } // namespace tekki::backend

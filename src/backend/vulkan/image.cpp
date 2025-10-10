@@ -11,12 +11,12 @@ namespace tekki::backend::vulkan {
 
 namespace {
     uint16_t mip_count_1d(uint32_t extent) {
-        return (32 - std::countl_zero(extent));
+        return static_cast<uint16_t>(32 - std::countl_zero(extent));
     }
 }
 
-ImageDesc::ImageDesc(VkFormat format, ImageType imageType, const glm::u32vec3& extent) 
-    : ImageType(imageType)
+ImageDesc::ImageDesc(VkFormat format, ImageType imageType, const glm::u32vec3& extent)
+    : Type(imageType)
     , Usage(VkImageUsageFlags(0))
     , Flags(VkImageCreateFlags(0))
     , Format(format)
@@ -46,7 +46,7 @@ ImageDesc ImageDesc::NewCube(VkFormat format, uint32_t width) {
 }
 
 ImageDesc& ImageDesc::WithImageType(ImageType imageType) {
-    ImageType = imageType;
+    Type = imageType;
     return *this;
 }
 
@@ -172,14 +172,14 @@ VkImageViewCreateInfo Image::CreateViewDescImpl(const ImageViewDesc& desc, const
         VK_COMPONENT_SWIZZLE_B,
         VK_COMPONENT_SWIZZLE_A
     };
-    createInfo.viewType = desc.ViewType.value_or(ConvertImageTypeToViewType(imageDesc.ImageType));
-    
+    createInfo.viewType = desc.ViewType.value_or(ConvertImageTypeToViewType(imageDesc.Type));
+
     createInfo.subresourceRange.aspectMask = desc.AspectMask;
     createInfo.subresourceRange.baseMipLevel = desc.BaseMipLevel;
     createInfo.subresourceRange.levelCount = desc.LevelCount.value_or(imageDesc.MipLevels);
     createInfo.subresourceRange.baseArrayLayer = 0;
-    
-    switch (imageDesc.ImageType) {
+
+    switch (imageDesc.Type) {
         case ImageType::Cube:
         case ImageType::CubeArray:
             createInfo.subresourceRange.layerCount = 6;
@@ -282,7 +282,7 @@ VkImageCreateInfo GetImageCreateInfo(const ImageDesc& desc, bool initialData) {
     VkExtent3D imageExtent{};
     uint32_t imageLayers;
 
-    switch (desc.ImageType) {
+    switch (desc.Type) {
         case ImageType::Tex1d:
             imageType = VK_IMAGE_TYPE_1D;
             imageExtent = { desc.Extent.x, 1, 1 };
@@ -348,50 +348,3 @@ VkImageCreateInfo GetImageCreateInfo(const ImageDesc& desc, bool initialData) {
 }
 
 } // namespace tekki::backend::vulkan
-
-namespace std {
-
-size_t hash<tekki::backend::vulkan::ImageDesc>::operator()(const tekki::backend::vulkan::ImageDesc& desc) const {
-    size_t h1 = std::hash<int>{}(static_cast<int>(desc.Type));
-    size_t h2 = std::hash<VkImageUsageFlags>{}(desc.Usage);
-    size_t h3 = std::hash<VkImageCreateFlags>{}(desc.Flags);
-    size_t h4 = std::hash<VkFormat>{}(desc.Format);
-    size_t h5 = std::hash<uint32_t>{}(desc.Extent.x) ^ (std::hash<uint32_t>{}(desc.Extent.y) << 1) ^ (std::hash<uint32_t>{}(desc.Extent.z) << 2);
-    size_t h6 = std::hash<VkImageTiling>{}(desc.Tiling);
-    size_t h7 = std::hash<uint16_t>{}(desc.MipLevels);
-    size_t h8 = std::hash<uint32_t>{}(desc.ArrayElements);
-    return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4) ^ (h6 << 5) ^ (h7 << 6) ^ (h8 << 7);
-}
-
-size_t hash<tekki::backend::vulkan::ImageViewDesc>::operator()(const tekki::backend::vulkan::ImageViewDesc& desc) const {
-    size_t seed = 0;
-    
-    auto hash_combine = [&seed](const auto& v) {
-        seed ^= std::hash<std::decay_t<decltype(v)>>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    };
-    
-    if (desc.ViewType.has_value()) {
-        hash_combine(static_cast<uint32_t>(desc.ViewType.value()));
-    } else {
-        hash_combine(0);
-    }
-    
-    if (desc.Format.has_value()) {
-        hash_combine(static_cast<uint32_t>(desc.Format.value()));
-    } else {
-        hash_combine(0);
-    }
-    
-    hash_combine(static_cast<uint32_t>(desc.AspectMask));
-    hash_combine(desc.BaseMipLevel);
-    
-    if (desc.LevelCount.has_value()) {
-        hash_combine(desc.LevelCount.value());
-    } else {
-        hash_combine(0);
-    }
-    
-    return seed;
-}
-
-} // namespace std

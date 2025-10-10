@@ -8,7 +8,8 @@
       "Bash(\"C:\\Users\\jstzw\\.conan2\\p\\b\\clang43100406ba76f\\p\\bin\\clang-format\":*)",
       "Bash(Setup.bat)",
       "Bash(cmd.exe /c \"Setup.bat\")",
-      "Bash(\"C:\\Users\\jstzw\\Documents\\GitHub\\tekki\\Setup.bat\")"
+      "Bash(\"C:\\Users\\jstzw\\Documents\\GitHub\\tekki\\Setup.bat\")",
+      "Bash(cmd.exe /c \"C:\\Users\\jstzw\\Documents\\GitHub\\tekki\\Setup.bat\")"
     ],
     "deny": [],
     "ask": []

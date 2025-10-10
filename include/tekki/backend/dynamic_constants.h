@@ -51,7 +51,7 @@ public:
     uint32_t Push(const T& t);
 
     template<typename T, typename Iter>
-    uint32_t PushFromIter(Iter iter);
+    uint32_t PushFromIter(Iter begin, Iter end);
 
     vulkan::Buffer buffer;
 
@@ -103,14 +103,14 @@ uint32_t DynamicConstants::Push(const T& t) {
 }
 
 template<typename T, typename Iter>
-uint32_t DynamicConstants::PushFromIter(Iter iter) {
+uint32_t DynamicConstants::PushFromIter(Iter begin, Iter end) {
     const size_t tSize = sizeof(T);
     const size_t tAlign = alignof(T);
 
     if (frameOffsetBytes + tSize >= DYNAMIC_CONSTANTS_SIZE_BYTES) {
         throw std::runtime_error("Dynamic constants buffer overflow");
     }
-    if (DYNAMIC_CONSTANTS_ALIGNMENT % tAlign != 0) {
+    if constexpr (DYNAMIC_CONSTANTS_ALIGNMENT % tAlign != 0) {
         throw std::runtime_error("Alignment requirement not satisfied");
     }
 
@@ -125,7 +125,8 @@ uint32_t DynamicConstants::PushFromIter(Iter iter) {
     }
 
     size_t dstOffset = bufferOffset;
-    for (const T& t : iter) {
+    for (auto it = begin; it != end; ++it) {
+        const T& t = *it;
         uint8_t* dst = mappedSlice + dstOffset;
         const uint8_t* src = reinterpret_cast<const uint8_t*>(&t);
         std::copy(src, src + tSize, dst);
