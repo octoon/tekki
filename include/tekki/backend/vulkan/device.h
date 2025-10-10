@@ -13,11 +13,11 @@
 #include <tekki/gpu_allocator/vulkan/allocator.h>
 #include <tekki/gpu_profiler/gpu_profiler.h>
 #include "tekki/core/result.h"
-#include "vulkan/buffer.h"
-#include "vulkan/physical_device.h"
-#include "vulkan/profiler.h"
-#include "vulkan/instance.h"
-#include "vulkan/error.h"
+#include "tekki/backend/vulkan/buffer.h"
+#include "tekki/backend/vulkan/physical_device.h"
+#include "tekki/backend/vulkan/profiler.h"
+#include "tekki/backend/vulkan/instance.h"
+#include "tekki/backend/vulkan/error.h"
 
 namespace tekki::backend::vulkan {
 

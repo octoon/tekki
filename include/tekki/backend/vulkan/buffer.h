@@ -39,12 +39,19 @@ struct BufferDesc {
         Alignment = alignment;
         return *this;
     }
+
+    bool operator==(const BufferDesc& other) const {
+        return Size == other.Size &&
+               Usage == other.Usage &&
+               MemoryLocation == other.MemoryLocation &&
+               Alignment == other.Alignment;
+    }
 };
 
 struct Buffer {
     VkBuffer Raw;
     BufferDesc Desc;
-    tekki::gpu_allocator::Allocation Allocation;
+    tekki::Allocation Allocation;
 
     uint64_t DeviceAddress(VkDevice device) const {
         VkBufferDeviceAddressInfo addressInfo = {};
@@ -55,3 +62,17 @@ struct Buffer {
 };
 
 } // namespace tekki::backend::vulkan
+
+// Hash specialization for BufferDesc
+namespace std {
+    template<>
+    struct hash<tekki::backend::vulkan::BufferDesc> {
+        size_t operator()(const tekki::backend::vulkan::BufferDesc& desc) const {
+            size_t h1 = std::hash<size_t>{}(desc.Size);
+            size_t h2 = std::hash<VkBufferUsageFlags>{}(desc.Usage);
+            size_t h3 = std::hash<int>{}(static_cast<int>(desc.MemoryLocation));
+            size_t h4 = desc.Alignment.has_value() ? std::hash<uint64_t>{}(desc.Alignment.value()) : 0;
+            return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
+        }
+    };
+}

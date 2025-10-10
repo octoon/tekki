@@ -13,10 +13,10 @@ std::ostream& operator<<(std::ostream& os, const PhysicalDevice& device) {
 std::vector<PhysicalDevice> EnumeratePhysicalDevices(std::shared_ptr<Instance> instance) {
     try {
         uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(instance->raw, &deviceCount, nullptr);
-        
+        vkEnumeratePhysicalDevices(instance->GetRaw(), &deviceCount, nullptr);
+
         std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
-        vkEnumeratePhysicalDevices(instance->raw, &deviceCount, physicalDevices.data());
+        vkEnumeratePhysicalDevices(instance->GetRaw(), &deviceCount, physicalDevices.data());
 
         std::vector<PhysicalDevice> result;
         result.reserve(deviceCount);
@@ -75,7 +75,7 @@ std::vector<PhysicalDevice> PhysicalDeviceList::WithPresentationSupport(std::vec
                 vkGetPhysicalDeviceSurfaceSupportKHR(
                     device.raw,
                     static_cast<uint32_t>(i),
-                    surface->raw,
+                    surface->GetRaw(),
                     &presentSupport
                 );
                 

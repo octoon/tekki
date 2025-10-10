@@ -5,7 +5,6 @@
 #include <cstring>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
-#include <ash/ash.hpp>
 #include "tekki/core/result.h"
 #include <stdexcept>
 
@@ -19,13 +18,13 @@ std::shared_ptr<Instance> DeviceBuilder::Build() {
     }
 }
 
-DeviceBuilder& DeviceBuilder::RequiredExtensions(const std::vector<const char*>& requiredExtensions) {
-    this->requiredExtensions = requiredExtensions;
+DeviceBuilder& DeviceBuilder::RequiredExtensions(const std::vector<const char*>& exts) {
+    this->requiredExtensions = exts;
     return *this;
 }
 
-DeviceBuilder& DeviceBuilder::GraphicsDebugging(bool graphicsDebugging) {
-    this->graphicsDebugging = graphicsDebugging;
+DeviceBuilder& DeviceBuilder::GraphicsDebugging(bool debug) {
+    this->graphicsDebugging = debug;
     return *this;
 }
 
@@ -35,71 +34,69 @@ DeviceBuilder Instance::Builder() {
 
 Instance Instance::Create(const DeviceBuilder& builder) {
     Instance instance;
-    
-    // Create entry
-    instance.entry = ash::Entry();
-    
+
     // Get extension names
     auto extensionNames = Instance::ExtensionNames(builder);
-    
+
     // Get layer names
     auto layerNames = Instance::LayerNames(builder);
-    
-    // Prepare layer names for Vulkan
-    std::vector<const char*> layerNamePtrs;
-    for (const auto& layer : layerNames) {
-        layerNamePtrs.push_back(layer.c_str());
-    }
-    
+
     // Combine required extensions with additional extensions
     std::vector<const char*> allExtensions = builder.requiredExtensions;
     allExtensions.insert(allExtensions.end(), extensionNames.begin(), extensionNames.end());
-    
+
     // Create application info
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
-    
+
     // Create instance info
     VkInstanceCreateInfo instanceInfo{};
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceInfo.pApplicationInfo = &appInfo;
     instanceInfo.enabledExtensionCount = static_cast<uint32_t>(allExtensions.size());
     instanceInfo.ppEnabledExtensionNames = allExtensions.data();
-    instanceInfo.enabledLayerCount = static_cast<uint32_t>(layerNamePtrs.size());
-    instanceInfo.ppEnabledLayerNames = layerNamePtrs.data();
-    
+    instanceInfo.enabledLayerCount = static_cast<uint32_t>(layerNames.size());
+    instanceInfo.ppEnabledLayerNames = layerNames.data();
+
     // Create Vulkan instance
     VkResult result = vkCreateInstance(&instanceInfo, nullptr, &instance.raw);
     if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Vulkan instance");
     }
-    
+
     // Setup debug reporting if enabled
     if (builder.graphicsDebugging) {
         try {
+            // Load debug extension function pointers
+            instance.vkCreateDebugReportCallbackEXT = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
+                vkGetInstanceProcAddr(instance.raw, "vkCreateDebugReportCallbackEXT"));
+            instance.vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
+                vkGetInstanceProcAddr(instance.raw, "vkDestroyDebugReportCallbackEXT"));
+            instance.vkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+                vkGetInstanceProcAddr(instance.raw, "vkCreateDebugUtilsMessengerEXT"));
+            instance.vkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+                vkGetInstanceProcAddr(instance.raw, "vkDestroyDebugUtilsMessengerEXT"));
+
             // Create debug report callback
             VkDebugReportCallbackCreateInfoEXT debugInfo{};
             debugInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-            debugInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | 
-                            VK_DEBUG_REPORT_WARNING_BIT_EXT | 
+            debugInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT |
+                            VK_DEBUG_REPORT_WARNING_BIT_EXT |
                             VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
             debugInfo.pfnCallback = &Instance::VulkanDebugCallback;
-            
-            // Load debug extensions
-            instance.debugLoader = std::make_unique<ash::extensions::ext::DebugReport>(instance.entry, instance.raw);
-            instance.debugUtils = std::make_unique<ash::extensions::ext::DebugUtils>(instance.entry, instance.raw);
-            
-            // Create debug callback
-            result = instance.debugLoader->createDebugReportCallback(debugInfo, nullptr, &instance.debugCallback);
-            if (result != VK_SUCCESS) {
-                throw std::runtime_error("Failed to create debug report callback");
+
+            if (instance.vkCreateDebugReportCallbackEXT) {
+                result = instance.vkCreateDebugReportCallbackEXT(instance.raw, &debugInfo, nullptr, &instance.debugCallback);
+                if (result != VK_SUCCESS) {
+                    throw std::runtime_error("Failed to create debug report callback");
+                }
             }
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to setup debug reporting: ") + e.what());
         }
     }
-    
+
     return instance;
 }
 
@@ -117,13 +114,13 @@ std::vector<const char*> Instance::ExtensionNames(const DeviceBuilder& builder) 
     return names;
 }
 
-std::vector<std::string> Instance::LayerNames(const DeviceBuilder& builder) {
-    std::vector<std::string> layerNames;
-    
+std::vector<const char*> Instance::LayerNames(const DeviceBuilder& builder) {
+    std::vector<const char*> layerNames;
+
     if (builder.graphicsDebugging) {
         layerNames.push_back("VK_LAYER_KHRONOS_validation");
     }
-    
+
     return layerNames;
 }
 
