@@ -17,6 +17,7 @@
 #include "vulkan/physical_device.h"
 #include "vulkan/profiler.h"
 #include "vulkan/instance.h"
+#include "vulkan/error.h"
 
 namespace tekki::backend::vulkan {
 
@@ -148,10 +149,14 @@ public:
     void WithSetupCb(const std::function<void(VkCommandBuffer)>& callback);
     void FinishFrame(const std::shared_ptr<DeviceFrame>& frame);
     const PhysicalDevice* PhysicalDevice() const;
-    const DebugUtils* DebugUtils() const;
+    const class DebugUtils* DebugUtils() const;
     uint32_t MaxBindlessDescriptorCount() const;
     bool RayTracingEnabled() const;
-    
+
+    // Buffer management
+    Buffer CreateBuffer(BufferDesc desc, const std::string& name, const std::vector<uint8_t>& initialData = {});
+    void ImmediateDestroyBuffer(const Buffer& buffer);
+
     VkDevice GetRaw() const { return raw_; }
     const Queue& GetUniversalQueue() const { return universalQueue_; }
 };

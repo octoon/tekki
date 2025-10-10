@@ -10,6 +10,7 @@
 #include <algorithm>
 #include "vulkan/vulkan.h"
 #include "tekki/core/result.h"
+#include "tekki/backend/vulkan/buffer.h"
 
 namespace tekki::backend {
 
@@ -28,32 +29,30 @@ constexpr size_t DYNAMIC_CONSTANTS_ALIGNMENT = 256;
 // For now, just a max size.
 constexpr size_t MAX_DYNAMIC_CONSTANTS_STORAGE_BUFFER_BYTES = 1024 * 1024;
 
-class Buffer;
-
 class DynamicConstants {
 public:
-    DynamicConstants(std::shared_ptr<Buffer> buffer);
-    
+    DynamicConstants(vulkan::Buffer buffer);
+
     void AdvanceFrame();
-    
+
     uint32_t CurrentOffset() const;
-    
-    VkDeviceAddress CurrentDeviceAddress(const class Device& device) const;
-    
+
+    VkDeviceAddress CurrentDeviceAddress(VkDevice device) const;
+
     template<typename T>
     uint32_t Push(const T& t);
-    
+
     template<typename T, typename Iter>
     uint32_t PushFromIter(Iter iter);
 
-    std::shared_ptr<Buffer> buffer;
+    vulkan::Buffer buffer;
 
 private:
     size_t frameOffsetBytes;
     size_t frameParity;
 };
 
-inline DynamicConstants::DynamicConstants(std::shared_ptr<Buffer> buffer)
+inline DynamicConstants::DynamicConstants(vulkan::Buffer buffer)
     : buffer(buffer)
     , frameOffsetBytes(0)
     , frameParity(0) {
@@ -68,8 +67,8 @@ inline uint32_t DynamicConstants::CurrentOffset() const {
     return static_cast<uint32_t>(frameParity * DYNAMIC_CONSTANTS_SIZE_BYTES + frameOffsetBytes);
 }
 
-inline VkDeviceAddress DynamicConstants::CurrentDeviceAddress(const class Device& device) const {
-    return buffer->DeviceAddress(device) + static_cast<VkDeviceAddress>(CurrentOffset());
+inline VkDeviceAddress DynamicConstants::CurrentDeviceAddress(VkDevice device) const {
+    return buffer.DeviceAddress(device) + static_cast<VkDeviceAddress>(CurrentOffset());
 }
 
 template<typename T>
@@ -80,12 +79,12 @@ uint32_t DynamicConstants::Push(const T& t) {
     }
 
     uint32_t bufferOffset = CurrentOffset();
-    auto mappedSlice = buffer->GetAllocation().GetMappedSlice();
+    auto mappedSlice = buffer.Allocation.MappedSlice();
     if (!mappedSlice) {
         throw std::runtime_error("Failed to get mapped slice from buffer allocation");
     }
 
-    uint8_t* dst = mappedSlice->data() + bufferOffset;
+    uint8_t* dst = mappedSlice + bufferOffset;
     const uint8_t* src = reinterpret_cast<const uint8_t*>(&t);
     std::copy(src, src + tSize, dst);
 
@@ -112,14 +111,14 @@ uint32_t DynamicConstants::PushFromIter(Iter iter) {
         throw std::runtime_error("Buffer offset not properly aligned");
     }
 
-    auto mappedSlice = buffer->GetAllocation().GetMappedSlice();
+    auto mappedSlice = buffer.Allocation.MappedSlice();
     if (!mappedSlice) {
         throw std::runtime_error("Failed to get mapped slice from buffer allocation");
     }
 
     size_t dstOffset = bufferOffset;
     for (const T& t : iter) {
-        uint8_t* dst = mappedSlice->data() + dstOffset;
+        uint8_t* dst = mappedSlice + dstOffset;
         const uint8_t* src = reinterpret_cast<const uint8_t*>(&t);
         std::copy(src, src + tSize, dst);
         dstOffset += tSize + tAlign - 1;

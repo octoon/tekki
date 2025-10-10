@@ -5,7 +5,6 @@
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
 #include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
 
 namespace tekki::backend::vulkan {
 
