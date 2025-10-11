@@ -1,4 +1,5 @@
 #include "tekki/kajiya_imgui/imgui_backend.h"
+#include "tekki/backend/device.h"
 #include <memory>
 #include <vector>
 #include <glm/glm.hpp>
@@ -11,7 +12,7 @@
 
 namespace tekki::kajiya_imgui {
 
-void ImGuiBackendInner::CreateGraphicsResources(class Device* device, const glm::uvec2& surfaceResolution) {
+void ImGuiBackendInner::CreateGraphicsResources(tekki::backend::Device* device, const glm::uvec2& surfaceResolution) {
     if (Gfx.has_value()) {
         throw std::runtime_error("Graphics resources already created");
     }
@@ -37,12 +38,12 @@ std::shared_ptr<class Image> ImGuiBackendInner::GetTargetImage() {
     return nullptr;
 }
 
-std::shared_ptr<class Image> ImGuiBackendInner::Render(const glm::uvec2& physicalSize, const ImDrawData* drawData, std::shared_ptr<class Device> device, VkCommandBuffer commandBuffer) {
+std::shared_ptr<Image> ImGuiBackendInner::Render(const glm::uvec2& physicalSize, [[maybe_unused]] const ImDrawData* drawData, std::shared_ptr<tekki::backend::Device> device, VkCommandBuffer commandBuffer) {
     if (!Gfx.has_value()) {
         return nullptr;
     }
 
-    auto vkDevice = device->GetVkDevice();
+    [[maybe_unused]] auto vkDevice = device->GetVkDevice();
 
     // Begin imgui frame
     // Note: This assumes the imgui renderer has a BeginFrame method
@@ -72,25 +73,21 @@ std::shared_ptr<class Image> ImGuiBackendInner::Render(const glm::uvec2& physica
     return Gfx->ImguiTexture;
 }
 
-ImGuiBackend::ImGuiBackend(std::shared_ptr<class Device> device, GLFWwindow* window, ImGuiContext* imguiContext) 
+ImGuiBackend::ImGuiBackend(std::shared_ptr<tekki::backend::Device> device, [[maybe_unused]] GLFWwindow* window, ImGuiContext* imguiContext)
     : Device(device), Inner(std::make_shared<ImGuiBackendInner>()) {
-    
-    SetupImguiStyle(imguiContext);
 
-    // Initialize imgui platform
-    ImguiPlatform = std::make_unique<WinitPlatform>();
-    // Note: WinitPlatform attachment to GLFW window would need adaptation
+    SetupImguiStyle(imguiContext);
 
     // Setup fonts
     float hidpiFactor = 1.0f; // Would need to get from GLFW
     float fontSize = 13.0f * hidpiFactor;
-    
+
     ImFontConfig fontConfig{};
     fontConfig.SizePixels = fontSize;
-    
+
     // Add default font
     ImGui::GetIO().Fonts->AddFontDefault(&fontConfig);
-    
+
     // Add Japanese font
     // Note: Font loading would need to be adapted for C++
     // ImGui::GetIO().Fonts->AddFontFromFileTTF("assets/fonts/Roboto-Regular.ttf", fontSize, &fontConfig, ImGui::GetIO().Fonts->GetGlyphRangesJapanese());
@@ -114,19 +111,20 @@ void ImGuiBackend::DestroyGraphicsResources() {
     //     Inner->ImguiRenderer->DestroyPipeline(vkDevice);
     // }
 
-    if (Inner->Gfx.has_value()) {
-        vkDestroyFramebuffer(vkDevice, Inner->Gfx->ImguiFramebuffer, nullptr);
-        vkDestroyRenderPass(vkDevice, Inner->Gfx->ImguiRenderPass, nullptr);
-        Inner->Gfx.reset();
+    const auto& gfx = Inner->GetGfx();
+    if (gfx.has_value()) {
+        vkDestroyFramebuffer(vkDevice, gfx->ImguiFramebuffer, nullptr);
+        vkDestroyRenderPass(vkDevice, gfx->ImguiRenderPass, nullptr);
+        // Note: Gfx reset would need to be handled differently since it's private
     }
 }
 
-void ImGuiBackend::HandleEvent(GLFWwindow* window, ImGuiContext* imguiContext, const void* event) {
+void ImGuiBackend::HandleEvent([[maybe_unused]] GLFWwindow* window, [[maybe_unused]] ImGuiContext* imguiContext, [[maybe_unused]] const void* event) {
     // Note: Event handling would need adaptation from winit to GLFW
     // ImguiPlatform->HandleEvent(ImGui::GetIO(), window, event);
 }
 
-ImGuiContext* ImGuiBackend::PrepareFrame(GLFWwindow* window, ImGuiContext* imguiContext, float deltaTime) {
+ImGuiContext* ImGuiBackend::PrepareFrame([[maybe_unused]] GLFWwindow* window, ImGuiContext* imguiContext, float deltaTime) {
     // Note: Frame preparation would need adaptation
     // ImguiPlatform->PrepareFrame(ImGui::GetIO(), window);
     
@@ -135,10 +133,10 @@ ImGuiContext* ImGuiBackend::PrepareFrame(GLFWwindow* window, ImGuiContext* imgui
     return imguiContext;
 }
 
-void ImGuiBackend::FinishFrame(ImGuiContext* ui, GLFWwindow* window, class UiRenderer* uiRenderer) {
+void ImGuiBackend::FinishFrame([[maybe_unused]] ImGuiContext* ui, [[maybe_unused]] GLFWwindow* window, class UiRenderer* uiRenderer) {
     ImGui::Render();
     
-    auto drawData = ImGui::GetDrawData();
+    [[maybe_unused]] auto drawData = ImGui::GetDrawData();
     auto targetImage = Inner->GetTargetImage();
 
     if (uiRenderer && targetImage) {
@@ -149,7 +147,7 @@ void ImGuiBackend::FinishFrame(ImGuiContext* ui, GLFWwindow* window, class UiRen
     }
 }
 
-void ImGuiBackend::SetupImguiStyle(ImGuiContext* context) {
+void ImGuiBackend::SetupImguiStyle([[maybe_unused]] ImGuiContext* context) {
     auto hi = [](float v) -> ImVec4 { return {0.502f, 0.075f, 0.256f, v}; };
     auto med = [](float v) -> ImVec4 { return {0.455f, 0.198f, 0.301f, v}; };
     auto low = [](float v) -> ImVec4 { return {0.232f, 0.201f, 0.271f, v}; };
@@ -260,7 +258,7 @@ VkRenderPass ImGuiBackend::CreateImguiRenderPass(VkDevice device) {
     return renderPass;
 }
 
-std::pair<VkFramebuffer, std::shared_ptr<class Image>> ImGuiBackend::CreateImguiFramebuffer(class Device* device, VkRenderPass renderPass, const glm::uvec2& surfaceResolution) {
+std::pair<VkFramebuffer, std::shared_ptr<Image>> ImGuiBackend::CreateImguiFramebuffer(tekki::backend::Device* device, VkRenderPass renderPass, const glm::uvec2& surfaceResolution) {
     // Create image
     // Note: This assumes Device has a CreateImage method
     // auto image = device->CreateImage(ImageDesc::new_2d(VK_FORMAT_R8G8B8A8_UNORM, surfaceResolution)

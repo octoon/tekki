@@ -26,11 +26,10 @@ struct CompileShader {
 class ShaderCompiler {
 public:
     static CompiledShader Compile(const CompileShader& compileInfo);
-    
-private:
+
     static std::vector<uint8_t> CompileGenericShaderHlslImpl(
-        const std::string& name, 
-        const std::string& source, 
+        const std::string& name,
+        const std::string& source,
         const std::string& targetProfile);
 };
 

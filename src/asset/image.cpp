@@ -9,8 +9,8 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include "tekki/core/result.h"
-#include "tekki/mesh/TexParams.h"
-#include "tekki/mesh/GpuImage.h"
+#include "tekki/asset/TexParams.h"
+#include "tekki/asset/GpuImage.h"
 
 // DDS file format support (simplified implementation)
 namespace ddsfile {
@@ -153,10 +153,10 @@ RawImage CreatePlaceholderImage::Create() {
 }
 
 // CreateGpuImage implementation
-CreateGpuImage::CreateGpuImage(const std::shared_ptr<RawImage>& image, const tekki::mesh::TexParams& params)
+CreateGpuImage::CreateGpuImage(const std::shared_ptr<RawImage>& image, const tekki::asset::TexParams& params)
     : image_(image), params_(params) {}
 
-tekki::mesh::GpuImage::Proto CreateGpuImage::Create() {
+tekki::asset::GpuImage::Proto CreateGpuImage::Create() {
     try {
         if (!image_) {
             throw std::runtime_error("Invalid image source");
@@ -175,24 +175,21 @@ tekki::mesh::GpuImage::Proto CreateGpuImage::Create() {
     }
 }
 
-tekki::mesh::GpuImage::Proto CreateGpuImage::ProcessRgba8(const RawRgba8Image& src) {
+tekki::asset::GpuImage::Proto CreateGpuImage::ProcessRgba8(const RawRgba8Image& src) {
     // This is a simplified implementation
     // In a real implementation, you would:
     // 1. Handle different gamma spaces
     // 2. Implement BC5/BC7 compression
     // 3. Handle mipmap generation
     // 4. Implement channel swizzling
+
+    tekki::asset::GpuImage::Proto proto;
     
-    tekki::mesh::GpuImage::Proto proto;
-    
-    // Set format based on gamma
-    switch (params_.gamma) {
-        case tekki::mesh::TexGamma::Linear:
-            proto.format = VK_FORMAT_R8G8B8A8_UNORM;
-            break;
-        case tekki::mesh::TexGamma::Srgb:
-            proto.format = VK_FORMAT_R8G8B8A8_SRGB;
-            break;
+    // Set format based on SRGB setting
+    if (params_.srgb) {
+        proto.format = VK_FORMAT_R8G8B8A8_SRGB;
+    } else {
+        proto.format = VK_FORMAT_R8G8B8A8_UNORM;
     }
     
     // Set dimensions
@@ -205,13 +202,13 @@ tekki::mesh::GpuImage::Proto CreateGpuImage::ProcessRgba8(const RawRgba8Image& s
     return proto;
 }
 
-tekki::mesh::GpuImage::Proto CreateGpuImage::ProcessDds(void* ddsData) {
+tekki::asset::GpuImage::Proto CreateGpuImage::ProcessDds(void* ddsData) {
     // This is a placeholder implementation
     // In a real implementation, you would parse the DDS data and convert to Vulkan format
-    
+
     auto* dds = static_cast<ddsfile::Dds*>(ddsData);
-    
-    tekki::mesh::GpuImage::Proto proto;
+
+    tekki::asset::GpuImage::Proto proto;
     
     // Map DDS format to Vulkan format
     switch (dds->get_dxgi_format()) {
@@ -243,7 +240,7 @@ tekki::mesh::GpuImage::Proto CreateGpuImage::ProcessDds(void* ddsData) {
     return proto;
 }
 
-std::vector<uint8_t> CreateGpuImage::CompressMip(const std::vector<uint8_t>& mipData, uint32_t width, uint32_t height, BcMode bcMode, bool needsAlpha) {
+std::vector<uint8_t> CreateGpuImage::CompressMip([[maybe_unused]] const std::vector<uint8_t>& mipData, [[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height, [[maybe_unused]] BcMode bcMode, [[maybe_unused]] bool needsAlpha) {
     // Placeholder implementation - in real code you would use a BC compression library
     // For now, just return the original data
     return mipData;

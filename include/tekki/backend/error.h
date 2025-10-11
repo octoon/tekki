@@ -4,7 +4,6 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <backtrace.h>
 #include <vulkan/vulkan.h>
 #include "tekki/core/result.h"
 
@@ -31,9 +30,8 @@ public:
         return BackendError(Type::Allocation, message);
     }
 
-    static BackendError Vulkan(VkResult err, const backtrace_state* trace) {
-        std::string message = "Vulkan error: " + std::to_string(static_cast<int>(err)) + "; " + 
-                             backtraceToString(trace);
+    static BackendError Vulkan(VkResult err) {
+        std::string message = "Vulkan error: " + std::to_string(static_cast<int>(err));
         return BackendError(Type::Vulkan, message);
     }
 
@@ -45,11 +43,6 @@ public:
 private:
     Type m_type;
     std::string m_message;
-
-    static std::string backtraceToString(const backtrace_state* trace) {
-        // Simplified backtrace conversion - in real implementation would properly format backtrace
-        return "backtrace_available";
-    }
 };
 
 } // namespace tekki::backend

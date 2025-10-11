@@ -1,4 +1,3 @@
-```cpp
 #include "tekki/renderer/renderers/dlss.h"
 #include <filesystem>
 #include <fstream>
@@ -437,3 +436,87 @@ DlssRenderer::DlssRenderer(std::shared_ptr<tekki::backend::RenderBackend> backen
 
     auto optimalSettings = std::find_if(supportedQualityModes.begin(), supportedQualityModes.end(),
         [&](const auto& mode) {
+            return mode.second.OptimalRenderExtent == inputResolution;
+        });
+
+    NVSDK_NGX_PerfQuality_Value optimalQualityValue;
+    DlssOptimalSettings finalSettings;
+
+    if (optimalSettings != supportedQualityModes.end()) {
+        optimalQualityValue = optimalSettings->first;
+        finalSettings = optimalSettings->second;
+    } else if (!supportedQualityModes.empty()) {
+        optimalQualityValue = supportedQualityModes[0].first;
+        finalSettings = supportedQualityModes[0].second;
+    } else {
+        throw std::runtime_error("No DLSS quality mode can produce target resolution from input resolution");
+    }
+
+    const char* qualityValueStr = "unknown";
+    switch (optimalQualityValue) {
+        case NVSDK_NGX_PerfQuality_Value_NVSDK_NGX_PerfQuality_Value_MaxPerf:
+            qualityValueStr = "MaxPerf";
+            break;
+        case NVSDK_NGX_PerfQuality_Value_NVSDK_NGX_PerfQuality_Value_Balanced:
+            qualityValueStr = "Balanced";
+            break;
+        case NVSDK_NGX_PerfQuality_Value_NVSDK_NGX_PerfQuality_Value_MaxQuality:
+            qualityValueStr = "MaxQuality";
+            break;
+        case NVSDK_NGX_PerfQuality_Value_NVSDK_NGX_PerfQuality_Value_UltraPerformance:
+            qualityValueStr = "UltraPerformance";
+            break;
+        case NVSDK_NGX_PerfQuality_Value_NVSDK_NGX_PerfQuality_Value_UltraQuality:
+            qualityValueStr = "UltraQuality";
+            break;
+    }
+
+    // Log the selected mode
+    // TODO: Add proper logging
+    // spdlog::info("Using {} DLSS mode", qualityValueStr);
+
+    NVSDK_NGX_DLSS_Create_Params dlssCreateParams{};
+    dlssCreateParams.Feature.InWidth = finalSettings.OptimalRenderExtent.x;
+    dlssCreateParams.Feature.InHeight = finalSettings.OptimalRenderExtent.y;
+    dlssCreateParams.Feature.InTargetWidth = targetResolution.x;
+    dlssCreateParams.Feature.InTargetHeight = targetResolution.y;
+    dlssCreateParams.Feature.InPerfQualityValue = optimalQualityValue;
+    dlssCreateParams.InFeatureCreateFlags =
+        NVSDK_NGX_DLSS_Feature_Flags_NVSDK_NGX_DLSS_Feature_Flags_IsHDR |
+        NVSDK_NGX_DLSS_Feature_Flags_NVSDK_NGX_DLSS_Feature_Flags_MVLowRes |
+        NVSDK_NGX_DLSS_Feature_Flags_NVSDK_NGX_DLSS_Feature_Flags_DepthInverted;
+    dlssCreateParams.InEnableOutputSubrects = false;
+
+    NVSDK_NGX_Parameter_SetUI(ngxParams, NVSDK_NGX_Parameter_CreationNodeMask, 1);
+    NVSDK_NGX_Parameter_SetUI(ngxParams, NVSDK_NGX_Parameter_VisibilityNodeMask, 1);
+    NVSDK_NGX_Parameter_SetUI(ngxParams, NVSDK_NGX_Parameter_Width, dlssCreateParams.Feature.InWidth);
+    NVSDK_NGX_Parameter_SetUI(ngxParams, NVSDK_NGX_Parameter_Height, dlssCreateParams.Feature.InHeight);
+    NVSDK_NGX_Parameter_SetUI(ngxParams, NVSDK_NGX_Parameter_OutWidth, dlssCreateParams.Feature.InTargetWidth);
+    NVSDK_NGX_Parameter_SetUI(ngxParams, NVSDK_NGX_Parameter_OutHeight, dlssCreateParams.Feature.InTargetHeight);
+    NVSDK_NGX_Parameter_SetI(ngxParams, NVSDK_NGX_Parameter_PerfQualityValue, dlssCreateParams.Feature.InPerfQualityValue);
+    NVSDK_NGX_Parameter_SetI(ngxParams, NVSDK_NGX_Parameter_DLSS_Feature_Create_Flags, dlssCreateParams.InFeatureCreateFlags);
+    NVSDK_NGX_Parameter_SetI(ngxParams, NVSDK_NGX_Parameter_DLSS_Enable_Output_Subrects, dlssCreateParams.InEnableOutputSubrects ? 1 : 0);
+
+    NVSDK_NGX_Handle* dlssFeature = nullptr;
+
+    // Create DLSS feature using a setup command buffer
+    // TODO: This needs to be called with a valid command buffer from the backend
+    // For now, we'll need to add a method to the backend to execute setup commands
+    auto vulkanDevice = std::dynamic_pointer_cast<tekki::backend::vulkan::Device>(backend->device());
+
+    // Execute with setup callback
+    backend->device()->with_setup_cb([&](VkCommandBuffer cb) {
+        DlssRenderer::CheckNgxResult(NVSDK_NGX_VULKAN_CreateFeature(
+            cb,
+            NVSDK_NGX_Feature_NVSDK_NGX_Feature_SuperSampling,
+            ngxParams,
+            &dlssFeature
+        ));
+    });
+
+    DlssFeature = dlssFeature;
+    OptimalSettings = finalSettings;
+    Backend = backend;
+}
+
+} // namespace tekki::renderer::renderers

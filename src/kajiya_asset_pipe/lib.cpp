@@ -1,4 +1,5 @@
 #include "tekki/kajiya_asset_pipe/lib.h"
+#include "tekki/asset/GpuImage.h"
 #include <vector>
 #include <memory>
 #include <string>
@@ -16,14 +17,14 @@
 namespace tekki::kajiya_asset_pipe {
 
 void MeshAssetProcessor::ProcessMeshAsset(const MeshAssetProcessParams& params) {
-    auto lazyCache = LazyCache::Create();
+    auto lazyCache = kajiya_asset::LazyCache::Create();
 
     std::filesystem::create_directories("cache");
 
     {
         std::cout << "Loading " << params.Path << "..." << std::endl;
 
-        auto loadScene = LoadGltfScene{
+        auto loadScene = kajiya_asset::LoadGltfScene{
             .Path = params.Path,
             .Scale = params.Scale,
             .Rotation = glm::quat{1.0f, 0.0f, 0.0f, 0.0f} // Quat::IDENTITY
@@ -31,11 +32,11 @@ void MeshAssetProcessor::ProcessMeshAsset(const MeshAssetProcessParams& params) 
 
         auto mesh = loadScene.IntoLazy();
         auto evaluatedMesh = std::async(std::launch::async, [&]() {
-            return mesh.Eval(lazyCache).get();
+            return mesh.Eval(lazyCache);
         }).get();
 
         std::cout << "Packing the mesh..." << std::endl;
-        auto packedMesh = PackTriangleMesh(evaluatedMesh);
+        auto packedMesh = kajiya_asset::PackTriangleMesh(evaluatedMesh);
 
         std::ofstream meshFile("cache/" + params.OutputName + ".mesh", std::ios::binary);
         if (!meshFile.is_open()) {
@@ -43,8 +44,8 @@ void MeshAssetProcessor::ProcessMeshAsset(const MeshAssetProcessParams& params) 
         }
         packedMesh.FlattenInto(meshFile);
 
-        auto uniqueImages = std::vector<std::shared_ptr<Lazy<GpuImage::Proto>>>();
-        auto imageSet = std::unordered_set<std::shared_ptr<Lazy<GpuImage::Proto>>>();
+        auto uniqueImages = std::vector<std::shared_ptr<kajiya_asset::Lazy<tekki::asset::GpuImage::Proto>>>();
+        auto imageSet = std::unordered_set<std::shared_ptr<kajiya_asset::Lazy<tekki::asset::GpuImage::Proto>>>();
         
         for (const auto& map : packedMesh.Maps) {
             imageSet.insert(map);
@@ -58,9 +59,9 @@ void MeshAssetProcessor::ProcessMeshAsset(const MeshAssetProcessParams& params) 
         for (const auto& img : uniqueImages) {
             imageTasks.push_back(std::async(std::launch::async, [img, &lazyCache]() {
                 try {
-                    auto loaded = img->Eval(lazyCache).get();
+                    auto loaded = img->Eval(lazyCache);
                     auto imgDst = std::filesystem::path("cache/" + FormatHex(img->Identity(), 8) + ".image");
-                    
+
                     std::ofstream imageFile(imgDst, std::ios::binary);
                     if (!imageFile.is_open()) {
                         if (std::filesystem::exists(imgDst)) {
@@ -70,8 +71,10 @@ void MeshAssetProcessor::ProcessMeshAsset(const MeshAssetProcessParams& params) 
                             throw std::runtime_error("Failed to create image file");
                         }
                     }
-                    
-                    loaded.FlattenInto(imageFile);
+
+                    std::vector<uint8_t> imageData;
+                    loaded->FlattenInto(imageData);
+                    imageFile.write(reinterpret_cast<const char*>(imageData.data()), imageData.size());
                 } catch (const std::exception& e) {
                     throw std::runtime_error(std::string("Failed to process image: ") + e.what());
                 }

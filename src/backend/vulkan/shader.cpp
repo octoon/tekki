@@ -1,7 +1,7 @@
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/backend/vulkan/device.h"
 #include "tekki/backend/vulkan/image.h"
-#include "tekki/shader_compiler.h"
+#include "tekki/backend/shader_compiler.h"
 #include <array>
 #include <vector>
 #include <unordered_map>
@@ -11,12 +11,74 @@
 #include <cstdint>
 #include <filesystem>
 #include <glm/glm.hpp>
-#include <rspirv_reflect.h>
+#include <rspirv-reflect/reflection.h>
 #include <vulkan/vulkan.h>
 #include <stdexcept>
 #include <cstring>
 
 namespace tekki::backend::vulkan {
+
+// Helper function to convert rspirv_reflect types to tekki types
+static DescriptorType ConvertDescriptorType(rspirv_reflect::DescriptorType ty) {
+    switch (ty) {
+        case rspirv_reflect::DescriptorType::SAMPLER:
+            return DescriptorType::SAMPLER;
+        case rspirv_reflect::DescriptorType::COMBINED_IMAGE_SAMPLER:
+            return DescriptorType::COMBINED_IMAGE_SAMPLER;
+        case rspirv_reflect::DescriptorType::SAMPLED_IMAGE:
+            return DescriptorType::SAMPLED_IMAGE;
+        case rspirv_reflect::DescriptorType::STORAGE_IMAGE:
+            return DescriptorType::STORAGE_IMAGE;
+        case rspirv_reflect::DescriptorType::UNIFORM_TEXEL_BUFFER:
+            return DescriptorType::UNIFORM_TEXEL_BUFFER;
+        case rspirv_reflect::DescriptorType::STORAGE_TEXEL_BUFFER:
+            return DescriptorType::STORAGE_TEXEL_BUFFER;
+        case rspirv_reflect::DescriptorType::UNIFORM_BUFFER:
+            return DescriptorType::UNIFORM_BUFFER;
+        case rspirv_reflect::DescriptorType::STORAGE_BUFFER:
+            return DescriptorType::STORAGE_BUFFER;
+        case rspirv_reflect::DescriptorType::UNIFORM_BUFFER_DYNAMIC:
+            return DescriptorType::UNIFORM_BUFFER_DYNAMIC;
+        case rspirv_reflect::DescriptorType::STORAGE_BUFFER_DYNAMIC:
+            return DescriptorType::STORAGE_BUFFER_DYNAMIC;
+        case rspirv_reflect::DescriptorType::INPUT_ATTACHMENT:
+            return DescriptorType::INPUT_ATTACHMENT;
+        case rspirv_reflect::DescriptorType::ACCELERATION_STRUCTURE_KHR:
+            return DescriptorType::ACCELERATION_STRUCTURE_KHR;
+        default:
+            throw std::runtime_error("Unknown descriptor type");
+    }
+}
+
+static DescriptorDimensionality ConvertBindingCount(const rspirv_reflect::BindingCount& binding_count) {
+    switch (binding_count.type) {
+        case rspirv_reflect::BindingCountType::One:
+        case rspirv_reflect::BindingCountType::StaticSized:
+            return DescriptorDimensionality::Single;
+        case rspirv_reflect::BindingCountType::Unbounded:
+            return DescriptorDimensionality::RuntimeArray;
+        default:
+            throw std::runtime_error("Unknown binding count type");
+    }
+}
+
+static StageDescriptorSetLayouts ConvertDescriptorSets(
+    const std::map<uint32_t, std::map<uint32_t, rspirv_reflect::DescriptorInfo>>& rspirv_sets) {
+
+    StageDescriptorSetLayouts result;
+    for (const auto& [set_idx, bindings] : rspirv_sets) {
+        DescriptorSetLayout layout;
+        for (const auto& [binding_idx, info] : bindings) {
+            layout[binding_idx] = DescriptorInfo{
+                ConvertDescriptorType(info.ty),
+                ConvertBindingCount(info.binding_count),
+                info.name
+            };
+        }
+        result[set_idx] = std::move(layout);
+    }
+    return result;
+}
 
 std::pair<std::vector<VkDescriptorSetLayout>, std::vector<std::unordered_map<uint32_t, VkDescriptorType>>>
 CreateDescriptorSetLayouts(
@@ -80,30 +142,30 @@ CreateDescriptorSetLayouts(
 
             for (const auto& [binding_index, binding] : *set) {
                 switch (binding.ty) {
-                    case rspirv_reflect::DescriptorType::UNIFORM_BUFFER:
-                    case rspirv_reflect::DescriptorType::UNIFORM_TEXEL_BUFFER:
-                    case rspirv_reflect::DescriptorType::STORAGE_IMAGE:
-                    case rspirv_reflect::DescriptorType::STORAGE_BUFFER:
-                    case rspirv_reflect::DescriptorType::STORAGE_BUFFER_DYNAMIC: {
+                    case DescriptorType::UNIFORM_BUFFER:
+                    case DescriptorType::UNIFORM_TEXEL_BUFFER:
+                    case DescriptorType::STORAGE_IMAGE:
+                    case DescriptorType::STORAGE_BUFFER:
+                    case DescriptorType::STORAGE_BUFFER_DYNAMIC: {
                         VkDescriptorType descriptor_type;
                         switch (binding.ty) {
-                            case rspirv_reflect::DescriptorType::UNIFORM_BUFFER:
+                            case DescriptorType::UNIFORM_BUFFER:
                                 descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                                 break;
-                            case rspirv_reflect::DescriptorType::UNIFORM_TEXEL_BUFFER:
+                            case DescriptorType::UNIFORM_TEXEL_BUFFER:
                                 descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
                                 break;
-                            case rspirv_reflect::DescriptorType::STORAGE_IMAGE:
+                            case DescriptorType::STORAGE_IMAGE:
                                 descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
                                 break;
-                            case rspirv_reflect::DescriptorType::STORAGE_BUFFER:
+                            case DescriptorType::STORAGE_BUFFER:
                                 if (binding.name.ends_with("_dyn")) {
                                     descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
                                 } else {
                                     descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                                 }
                                 break;
-                            case rspirv_reflect::DescriptorType::STORAGE_BUFFER_DYNAMIC:
+                            case DescriptorType::STORAGE_BUFFER_DYNAMIC:
                                 descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
                                 break;
                             default:
@@ -119,8 +181,8 @@ CreateDescriptorSetLayouts(
                         });
                         break;
                     }
-                    case rspirv_reflect::DescriptorType::SAMPLED_IMAGE: {
-                        if (binding.dimensionality == rspirv_reflect::DescriptorDimensionality::RuntimeArray) {
+                    case DescriptorType::SAMPLED_IMAGE: {
+                        if (binding.dimensionality == DescriptorDimensionality::RuntimeArray) {
                             size_t binding_idx = bindings.size();
                             if (binding_idx < binding_flags.size()) {
                                 binding_flags[binding_idx] = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
@@ -132,16 +194,8 @@ CreateDescriptorSetLayouts(
                         }
 
                         uint32_t descriptor_count = 1;
-                        switch (binding.dimensionality) {
-                            case rspirv_reflect::DescriptorDimensionality::Single:
-                                descriptor_count = 1;
-                                break;
-                            case rspirv_reflect::DescriptorDimensionality::Array:
-                                descriptor_count = binding.count;
-                                break;
-                            case rspirv_reflect::DescriptorDimensionality::RuntimeArray:
-                                descriptor_count = device->GetMaxBindlessDescriptorCount();
-                                break;
+                        if (binding.dimensionality == DescriptorDimensionality::RuntimeArray) {
+                            descriptor_count = device->MaxBindlessDescriptorCount();
                         }
 
                         bindings.push_back(VkDescriptorSetLayoutBinding{
@@ -153,7 +207,7 @@ CreateDescriptorSetLayouts(
                         });
                         break;
                     }
-                    case rspirv_reflect::DescriptorType::SAMPLER: {
+                    case DescriptorType::SAMPLER: {
                         std::string name_prefix = "sampler_";
                         if (binding.name.rfind(name_prefix, 0) == 0) {
                             std::string spec = binding.name.substr(name_prefix.length());
@@ -209,7 +263,7 @@ CreateDescriptorSetLayouts(
                         }
                         break;
                     }
-                    case rspirv_reflect::DescriptorType::ACCELERATION_STRUCTURE_KHR:
+                    case DescriptorType::ACCELERATION_STRUCTURE_KHR:
                         bindings.push_back(VkDescriptorSetLayoutBinding{
                             .binding = binding_index,
                             .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
@@ -278,16 +332,25 @@ ComputePipeline CreateComputePipeline(
     Device* device,
     const std::vector<uint8_t>& spirv,
     const ComputePipelineDesc& desc) {
-    
-    rspirv_reflect::Reflection reflection;
-    if (!reflection.InitFromSpirv(spirv.data(), spirv.size())) {
+
+    // Convert uint8_t to uint32_t for SPIR-V reflection
+    const uint32_t* spirv_words = reinterpret_cast<const uint32_t*>(spirv.data());
+    size_t word_count = spirv.size() / sizeof(uint32_t);
+
+    auto reflection_result = rspirv_reflect::Reflection::NewFromSpirv(spirv_words, word_count);
+    if (rspirv_reflect::IsErr(reflection_result)) {
         throw std::runtime_error("Failed to reflect SPIR-V");
     }
+    auto& reflection = rspirv_reflect::Unwrap(reflection_result);
 
-    StageDescriptorSetLayouts descriptor_sets;
-    if (!reflection.GetDescriptorSets(&descriptor_sets)) {
+    auto descriptor_sets_result = reflection.GetDescriptorSets();
+    if (rspirv_reflect::IsErr(descriptor_sets_result)) {
         throw std::runtime_error("Failed to get descriptor sets from reflection");
     }
+    auto& rspirv_descriptor_sets = rspirv_reflect::Unwrap(descriptor_sets_result);
+
+    // Convert from rspirv_reflect types to tekki types
+    StageDescriptorSetLayouts descriptor_sets = ConvertDescriptorSets(rspirv_descriptor_sets);
 
     auto [descriptor_set_layouts, set_layout_info] = CreateDescriptorSetLayouts(
         device, &descriptor_sets, VK_SHADER_STAGE_COMPUTE_BIT, desc.DescriptorSetOpts);
@@ -385,7 +448,11 @@ ComputePipeline CreateComputePipeline(
     }
 
     std::array<uint32_t, 3> group_size;
-    if (!GetCsLocalSizeFromSpirv(reinterpret_cast<const uint32_t*>(spirv.data()), spirv.size() / sizeof(uint32_t), group_size.data())) {
+    auto group_size_opt = reflection.GetComputeGroupSize();
+    if (group_size_opt.has_value()) {
+        auto [x, y, z] = group_size_opt.value();
+        group_size = {x, y, z};
+    } else {
         group_size = {1, 1, 1};
     }
 
@@ -481,15 +548,24 @@ RasterPipeline CreateRasterPipeline(
     stage_layouts.reserve(shaders.size());
 
     for (const auto& shader : shaders) {
-        rspirv_reflect::Reflection reflection;
-        if (!reflection.InitFromSpirv(shader.Code.data(), shader.Code.size())) {
+        // Convert uint8_t to uint32_t for SPIR-V reflection
+        const uint32_t* spirv_words = reinterpret_cast<const uint32_t*>(shader.Code.data());
+        size_t word_count = shader.Code.size() / sizeof(uint32_t);
+
+        auto reflection_result = rspirv_reflect::Reflection::NewFromSpirv(spirv_words, word_count);
+        if (rspirv_reflect::IsErr(reflection_result)) {
             throw std::runtime_error("Failed to reflect SPIR-V");
         }
+        auto& reflection = rspirv_reflect::Unwrap(reflection_result);
 
-        StageDescriptorSetLayouts descriptor_sets;
-        if (!reflection.GetDescriptorSets(&descriptor_sets)) {
+        auto descriptor_sets_result = reflection.GetDescriptorSets();
+        if (rspirv_reflect::IsErr(descriptor_sets_result)) {
             throw std::runtime_error("Failed to get descriptor sets from reflection");
         }
+        auto& rspirv_descriptor_sets = rspirv_reflect::Unwrap(descriptor_sets_result);
+
+        // Convert from rspirv_reflect types to tekki types
+        StageDescriptorSetLayouts descriptor_sets = ConvertDescriptorSets(rspirv_descriptor_sets);
 
         stage_layouts.push_back(std::move(descriptor_sets));
     }
@@ -615,7 +691,7 @@ RasterPipeline CreateRasterPipeline(
         .depthClampEnable = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = desc.FaceCull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE,
+        .cullMode = static_cast<VkCullModeFlags>(desc.FaceCull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE),
         .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f,
@@ -661,7 +737,7 @@ RasterPipeline CreateRasterPipeline(
         .maxDepthBounds = 1.0f
     };
 
-    size_t color_attachment_count = desc.RenderPass->FramebufferCache.ColorAttachmentCount;
+    size_t color_attachment_count = desc.RenderPassPtr->FbCache.GetColorAttachmentCount();
 
     std::vector<VkPipelineColorBlendAttachmentState> color_blend_attachment_states(
         color_attachment_count,
@@ -718,7 +794,7 @@ RasterPipeline CreateRasterPipeline(
         .pColorBlendState = &color_blend_state,
         .pDynamicState = &dynamic_state_info,
         .layout = pipeline_layout,
-        .renderPass = desc.RenderPass->Raw,
+        .renderPass = desc.RenderPassPtr->Raw,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = -1

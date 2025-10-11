@@ -23,6 +23,10 @@
 #include "tekki/backend/vulkan/error.h"
 #include "tekki/backend/vulkan/debug_utils.h"
 
+namespace tekki::backend {
+    class DynamicConstants;
+}
+
 namespace tekki::backend::vulkan {
 
 class CrashMarkerNames;
@@ -32,7 +36,6 @@ class RayTracingAccelerationScratchBuffer;
 struct RayTracingBottomAccelerationDesc;
 struct RayTracingTopAccelerationDesc;
 struct RayTracingInstanceDesc;
-class DynamicConstants;
 
 constexpr uint32_t ReservedDescriptorCount = 32;
 
@@ -149,7 +152,11 @@ private:
     void ReportError(const std::exception& error) const;
 
 public:
+    // Factory method - use this to create Device instances
     static std::shared_ptr<Device> Create(const std::shared_ptr<PhysicalDevice>& pdevice);
+
+    // Default constructor - DO NOT CALL DIRECTLY, use Create() instead
+    Device() = default;
     ~Device();
     
     Device(const Device&) = delete;
@@ -169,7 +176,7 @@ public:
 
     // Buffer management
     Buffer CreateBuffer(BufferDesc desc, const std::string& name, const std::vector<uint8_t>& initialData = {});
-    void ImmediateDestroyBuffer(const Buffer& buffer);
+    void ImmediateDestroyBuffer(Buffer buffer);
 
     // Error handling
     void RecordCrashMarker(const CommandBuffer& cb, const std::string& name);
@@ -179,11 +186,22 @@ public:
     std::shared_ptr<RayTracingAccelerationScratchBuffer> CreateRayTracingAccelerationScratchBuffer();
     std::shared_ptr<RayTracingAcceleration> CreateRayTracingBottomAcceleration(const RayTracingBottomAccelerationDesc& desc);
     std::shared_ptr<RayTracingAcceleration> CreateRayTracingTopAcceleration(const RayTracingTopAccelerationDesc& desc, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
-    VkDeviceAddress FillRayTracingInstanceBuffer(DynamicConstants& dynamicConstants, const std::vector<RayTracingInstanceDesc>& instances);
+    VkDeviceAddress FillRayTracingInstanceBuffer(backend::DynamicConstants& dynamicConstants, const std::vector<RayTracingInstanceDesc>& instances);
     void RebuildRayTracingTopAcceleration(VkCommandBuffer commandBuffer, VkDeviceAddress instanceBufferAddress, size_t instanceCount, const std::shared_ptr<RayTracingAcceleration>& tlas, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
+    std::shared_ptr<class RayTracingShaderTable> CreateRayTracingShaderTable(const struct RayTracingShaderTableDesc& desc, VkPipeline pipeline);
 
+private:
+    std::shared_ptr<RayTracingAcceleration> CreateRayTracingAcceleration(VkAccelerationStructureTypeKHR type, VkAccelerationStructureBuildGeometryInfoKHR geometryInfo, const std::vector<VkAccelerationStructureBuildRangeInfoKHR>& buildRangeInfos, const std::vector<uint32_t>& maxPrimitiveCounts, size_t preallocateBytes, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
+    void RebuildRayTracingAcceleration(VkCommandBuffer commandBuffer, VkAccelerationStructureBuildGeometryInfoKHR geometryInfo, const std::vector<VkAccelerationStructureBuildRangeInfoKHR>& buildRangeInfos, const std::vector<uint32_t>& maxPrimitiveCounts, const std::shared_ptr<RayTracingAcceleration>& acceleration, const std::shared_ptr<RayTracingAccelerationScratchBuffer>& scratchBuffer);
+
+public:
     VkDevice GetRaw() const { return raw_; }
+    VkDevice GetRawDevice() const { return raw_; }  // Alias for compatibility
     const Queue& GetUniversalQueue() const { return universalQueue_; }
+
+    // Friend the non-member function so it can access private members
+    template<typename T> friend class PipelineShader;
+    friend std::shared_ptr<class RayTracingPipeline> CreateRayTracingPipeline(const std::shared_ptr<Device>&, const std::vector<PipelineShader<std::vector<uint32_t>>>&, const struct RayTracingPipelineDesc&);
 };
 
 inline void DescriptorPoolDeferredRelease::EnqueueRelease(PendingResourceReleases& pending) const {

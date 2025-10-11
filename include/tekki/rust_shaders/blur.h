@@ -81,11 +81,11 @@ public:
     }
 
 private:
-    static glm::vec4 FetchTexture(const std::shared_ptr<void>& texture, const glm::ivec2& coord) {
+    static glm::vec4 FetchTexture([[maybe_unused]] const std::shared_ptr<void>& texture, [[maybe_unused]] const glm::ivec2& coord) {
         return glm::vec4(0.0f);
     }
 
-    static void WriteTexture(const std::shared_ptr<void>& texture, const glm::uvec2& coord, const glm::vec4& value) {
+    static void WriteTexture([[maybe_unused]] const std::shared_ptr<void>& texture, [[maybe_unused]] const glm::uvec2& coord, [[maybe_unused]] const glm::vec4& value) {
     }
 
     static void ControlBarrier() {

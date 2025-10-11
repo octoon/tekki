@@ -45,7 +45,7 @@ struct ViewRayContext {
     }
 
     static ViewRayContext FromUv(const glm::vec2& uv, const FrameConstants& frameConstants) {
-        const auto& viewConstants = frameConstants.ViewConstants;
+        const auto& viewConstants = frameConstants.view_constants;
 
         glm::vec4 rayDirCs = glm::vec4(UvToCs(uv), 0.0f, 1.0f);
         glm::vec4 rayDirVsH = viewConstants.SampleToView * rayDirCs;
@@ -69,7 +69,7 @@ struct ViewRayContext {
     }
 
     static ViewRayContext FromUvAndDepth(const glm::vec2& uv, float depth, const FrameConstants& frameConstants) {
-        const auto& viewConstants = frameConstants.ViewConstants;
+        const auto& viewConstants = frameConstants.view_constants;
 
         glm::vec4 rayDirCs = glm::vec4(UvToCs(uv), 0.0f, 1.0f);
         glm::vec4 rayDirVsH = viewConstants.SampleToView * rayDirCs;

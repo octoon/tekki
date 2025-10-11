@@ -1,5 +1,7 @@
 #pragma once
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <vector>
 #include <string>
 #include <filesystem>
@@ -8,6 +10,8 @@
 #include <utility>
 #include <cassert>
 #include <memory>
+#include <variant>
+#include <cstdlib>
 
 namespace tekki::rust_shader_builder {
 
@@ -18,7 +22,11 @@ struct RustShaderCompileResult {
 class RustShaderBuilder {
 public:
     static void Build() {
-        auto builder_root = std::filesystem::path(std::getenv("CARGO_MANIFEST_DIR"));
+        const char* manifest_dir = std::getenv("CARGO_MANIFEST_DIR");
+        if (!manifest_dir) {
+            throw std::runtime_error("CARGO_MANIFEST_DIR environment variable not set");
+        }
+        auto builder_root = std::filesystem::path(manifest_dir);
         auto compile_result = SpirvBuilder::New(builder_root / "../../lib/rust-shaders/", "spirv-unknown-vulkan1.1")
             .DenyWarnings(true)
             .Capability(Capability::StorageImageWriteWithoutFormat)
@@ -35,10 +43,12 @@ public:
 
         // Move all the compiled shaders to the `target_spv_dir`, and create a json file
         // mapping entry points to SPIR-V modules.
-        if (auto multi_module = std::get_if<ModuleResult::MultiModule>(&compile_result.Module)) {
+        if (auto multi_module = std::get_if<ModuleResult::MultiModule>(&compile_result.Module.variant)) {
             RustShaderCompileResult res;
-            
-            for (const auto& [entry, src_file] : *multi_module) {
+
+            for (const auto& entry_pair : multi_module->entries) {
+                const auto& entry = entry_pair.first;
+                const auto& src_file = entry_pair.second;
                 auto file_name = src_file.filename();
                 auto dst_file = target_spv_dir / file_name;
 

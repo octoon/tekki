@@ -8,13 +8,60 @@
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
+#include <vulkan/vulkan.hpp>
 #include "tekki/core/result.h"
+#include "tekki/backend/vk_sync.h"
 #include "tekki/render_graph/resource.h"
 #include "tekki/render_graph/resource_registry.h"
-#include "tekki/render_graph/pass_builder.h"
+#include "tekki/render_graph/types.h"
 #include "tekki/renderer/FrameConstantsLayout.h"
 
 namespace tekki::render_graph {
+
+// Forward declarations
+class PassBuilder;
+class CompiledRenderGraph;
+class ExecutingRenderGraph;
+class RetiredRenderGraph;
+
+// Enum for synchronization type
+enum class PassResourceAccessSyncType {
+    AlwaysSync,
+    SkipSyncIfSameAccessType
+};
+
+// Resource access type
+struct PassResourceAccessType {
+    vk_sync::AccessType AccessType;
+    PassResourceAccessSyncType SyncType;
+
+    PassResourceAccessType(vk_sync::AccessType accessType, PassResourceAccessSyncType syncType);
+};
+
+// Resource reference in a pass
+struct PassResourceRef {
+    GraphRawResourceHandle Handle;
+    PassResourceAccessType Access;
+};
+
+// Recorded pass structure
+struct RecordedPass {
+    std::vector<PassResourceRef> Read;
+    std::vector<PassResourceRef> Write;
+    std::function<void(RenderPassApi*)> RenderFn;
+    std::string Name;
+    std::size_t Idx;
+
+    RecordedPass(const std::string& name, std::size_t idx);
+};
+
+// Simple descriptor info for render graph
+struct DescriptorInfo {
+    VkDescriptorType type;
+    VkShaderStageFlags stageFlags;
+    uint32_t binding;
+    uint32_t count;
+};
 
 struct GraphResourceCreateInfo {
     GraphResourceDesc Desc;
@@ -63,7 +110,7 @@ struct RgRtPipeline {
 };
 
 struct PredefinedDescriptorSet {
-    std::unordered_map<std::uint32_t, tekki::backend::vulkan::DescriptorInfo> Bindings;
+    std::unordered_map<std::uint32_t, DescriptorInfo> Bindings;
 };
 
 struct RenderDebugHook {
@@ -188,36 +235,9 @@ private:
     std::vector<RegistryResource> Resources;
 };
 
-enum class PassResourceAccessSyncType {
-    AlwaysSync,
-    SkipSyncIfSameAccessType
-};
-
-struct PassResourceAccessType {
-    vk_sync::AccessType AccessType;
-    PassResourceAccessSyncType SyncType;
-
-    PassResourceAccessType(vk_sync::AccessType accessType, PassResourceAccessSyncType syncType);
-};
-
-struct PassResourceRef {
-    GraphRawResourceHandle Handle;
-    PassResourceAccessType Access;
-};
-
-struct RecordedPass {
-    std::vector<PassResourceRef> Read;
-    std::vector<PassResourceRef> Write;
-    std::function<void(RenderPassApi*)> RenderFn;
-    std::string Name;
-    std::size_t Idx;
-
-    RecordedPass(const std::string& name, std::size_t idx);
-};
-
 extern bool RGAllowPassOverlap;
 
 vk::ImageUsageFlags ImageAccessMaskToUsageFlags(vk::AccessFlags accessMask);
 vk::BufferUsageFlags BufferAccessMaskToUsageFlags(vk::AccessFlags accessMask);
 
-}
+}  // namespace tekki::render_graph

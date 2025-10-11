@@ -118,7 +118,8 @@ void GpuImage::Proto::FlattenInto(std::vector<uint8_t>& writer) {
             size_t mip_fixup_addr = nested.Bytes.size();
             nested.Bytes.resize(nested.Bytes.size() + 16);
             
-            std::memcpy(nested.Bytes.data() + mip_fixup_addr, &mip.size(), sizeof(uint64_t));
+            uint64_t mip_size = mip.size();
+            std::memcpy(nested.Bytes.data() + mip_fixup_addr, &mip_size, sizeof(uint64_t));
             
             FlattenCtx mip_nested;
             mip_nested.Bytes.insert(mip_nested.Bytes.end(), mip.begin(), mip.end());

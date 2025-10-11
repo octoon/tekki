@@ -20,11 +20,12 @@ namespace RenderOverrideFlags {
 struct alignas(16) RenderOverrides {
     uint32_t flags;
     float material_roughness_scale;
+    uint32_t _padding[2];  // Explicit padding to match 16-byte alignment
 
     /**
      * Default constructor
      */
-    RenderOverrides() : flags(0), material_roughness_scale(1.0f) {}
+    RenderOverrides() : flags(0), material_roughness_scale(1.0f), _padding{0, 0} {}
 
     /**
      * Copy constructor

@@ -6,13 +6,32 @@
 #include <filesystem>
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
-#include "render_graph/graph.h"
-#include "render_graph/resource.h"
-#include "kajiya_backend/vk_sync.h"
-#include "kajiya_backend/vulkan/ray_tracing.h"
-#include "kajiya_backend/vulkan/shader.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/resource.h"
+#include "tekki/render_graph/types.h"
+#include "tekki/backend/vk_sync.h"
+#include "tekki/backend/vulkan/ray_tracing.h"
+#include "tekki/backend/vulkan/shader.h"
 
 namespace tekki::render_graph {
+
+// Concept definitions
+template<typename T>
+concept ResourceDesc = requires {
+    typename T::Resource;
+};
+
+template<typename T>
+concept Resource = requires {
+    typename T::Desc;
+};
+
+template<typename T>
+concept GpuViewType = true; // Placeholder concept
+
+// GPU view types are defined in types.h
+// Raster pipeline descriptor builder is defined in types.h
+
 
 class PassBuilder {
 public:

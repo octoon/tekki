@@ -8,6 +8,26 @@
 
 namespace tekki::rust_shaders {
 
+// Stub implementations for Image2D and Sampler
+class Image2D {
+public:
+    glm::vec4 Fetch([[maybe_unused]] const glm::uvec2& coord) const {
+        return glm::vec4(0.0f);
+    }
+
+    glm::vec4 SampleByLod([[maybe_unused]] const class Sampler& sampler, [[maybe_unused]] const glm::vec2& uv, [[maybe_unused]] float lod) const {
+        return glm::vec4(0.0f);
+    }
+
+    void Write([[maybe_unused]] const glm::uvec2& coord, [[maybe_unused]] const glm::vec4& value) {
+        // Stub implementation
+    }
+};
+
+class Sampler {
+    // Stub implementation
+};
+
 struct Constants {
     uint32_t output_extent_x;
     uint32_t output_extent_y;

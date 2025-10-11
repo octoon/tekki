@@ -21,37 +21,6 @@ constexpr glm::vec3 C_OZONE = glm::vec3(0.650f * 1e-6f, 1.881f * 1e-6f, 0.085f *
 constexpr float ATMOSPHERE_DENSITY = 1.0f;
 constexpr float EXPOSURE = 20.0f;
 
-/// Optical depth is a unitless measurement of the amount of absorption of a participating medium (such as the atmosphere).
-/// This function calculates just that for our three atmospheric elements:
-/// R: Rayleigh
-/// G: Mie
-/// B: Ozone
-/// If you find the term "optical depth" confusing, you can think of it as "how much density was found along the ray in total".
-inline glm::vec3 IntegrateOpticalDepth(const glm::vec3& rayO, const glm::vec3& rayD) {
-    glm::vec2 intersection = AtmosphereIntersection(rayO, rayD);
-    float rayLength = intersection.y;
-
-    int sampleCount = 8;
-    float stepSize = rayLength / static_cast<float>(sampleCount);
-
-    glm::vec3 opticalDepth = glm::vec3(0.0f);
-
-    int i = 0;
-    // Using a while loop here as a workaround for a spirv-cross bug.
-    // See https://github.com/EmbarkStudios/rust-gpu/issues/739
-    while (i < sampleCount) {
-        glm::vec3 localPos = rayO + rayD * (static_cast<float>(i) + 0.5f) * stepSize;
-        float localHeight = AtmosphereHeight(localPos);
-        glm::vec3 localDensity = AtmosphereDensity(localHeight);
-
-        opticalDepth += localDensity * stepSize;
-
-        i++;
-    }
-
-    return opticalDepth;
-}
-
 inline float AtmosphereHeight(const glm::vec3& positionWs) {
     return glm::length(positionWs - PLANET_CENTER) - PLANET_RADIUS;
 }
@@ -94,6 +63,37 @@ inline glm::vec2 AtmosphereIntersection(const glm::vec3& rayO, const glm::vec3& 
         PLANET_CENTER,
         PLANET_RADIUS + ATMOSPHERE_HEIGHT
     );
+}
+
+/// Optical depth is a unitless measurement of the amount of absorption of a participating medium (such as the atmosphere).
+/// This function calculates just that for our three atmospheric elements:
+/// R: Rayleigh
+/// G: Mie
+/// B: Ozone
+/// If you find the term "optical depth" confusing, you can think of it as "how much density was found along the ray in total".
+inline glm::vec3 IntegrateOpticalDepth(const glm::vec3& rayO, const glm::vec3& rayD) {
+    glm::vec2 intersection = AtmosphereIntersection(rayO, rayD);
+    float rayLength = intersection.y;
+
+    int sampleCount = 8;
+    float stepSize = rayLength / static_cast<float>(sampleCount);
+
+    glm::vec3 opticalDepth = glm::vec3(0.0f);
+
+    int i = 0;
+    // Using a while loop here as a workaround for a spirv-cross bug.
+    // See https://github.com/EmbarkStudios/rust-gpu/issues/739
+    while (i < sampleCount) {
+        glm::vec3 localPos = rayO + rayD * (static_cast<float>(i) + 0.5f) * stepSize;
+        float localHeight = AtmosphereHeight(localPos);
+        glm::vec3 localDensity = AtmosphereDensity(localHeight);
+
+        opticalDepth += localDensity * stepSize;
+
+        i++;
+    }
+
+    return opticalDepth;
 }
 
 // -------------------------------------

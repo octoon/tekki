@@ -11,6 +11,7 @@
 #include <glm/glm.hpp>
 #include "vulkan/vulkan.h"
 #include "tekki/core/result.h"
+#include "tekki/backend/vulkan/image.h"
 
 namespace tekki::backend::vulkan {
 
@@ -83,21 +84,23 @@ struct DescriptorSetLayoutOpts {
 
     class Builder {
     private:
-        DescriptorSetLayoutOpts Options;
+        std::unique_ptr<DescriptorSetLayoutOpts> Options;
 
     public:
+        Builder() : Options(std::make_unique<DescriptorSetLayoutOpts>()) {}
+
         Builder& SetFlags(std::optional<VkDescriptorSetLayoutCreateFlags> flags) {
-            Options.Flags = flags;
+            Options->Flags = flags;
             return *this;
         }
 
         Builder& SetReplace(std::optional<DescriptorSetLayout> replace) {
-            Options.Replace = replace;
+            Options->Replace = replace;
             return *this;
         }
 
         DescriptorSetLayoutOpts Build() const {
-            return Options;
+            return *Options;
         }
     };
 
@@ -143,51 +146,66 @@ public:
     ShaderSourceType GetType() const { return Type; }
     const std::string& GetRustEntry() const { return RustEntry; }
     const std::filesystem::path& GetHlslPath() const { return HlslPath; }
+
+    bool operator==(const ShaderSource& other) const {
+        if (Type != other.Type) return false;
+        if (Type == ShaderSourceType::Rust) {
+            return RustEntry == other.RustEntry;
+        } else {
+            return HlslPath == other.HlslPath;
+        }
+    }
+
+    bool operator!=(const ShaderSource& other) const {
+        return !(*this == other);
+    }
 };
 
 struct ComputePipelineDesc {
     std::array<std::optional<std::pair<uint32_t, DescriptorSetLayoutOpts>>, MAX_DESCRIPTOR_SETS> DescriptorSetOpts;
-    size_t PushConstantsBytes;
+    size_t PushConstantsBytes = 0;
     ShaderSource Source;
 
     class Builder {
     private:
-        ComputePipelineDesc Desc;
+        std::unique_ptr<ComputePipelineDesc> Desc;
 
     public:
+        Builder() : Desc(std::make_unique<ComputePipelineDesc>()) {}
+
         Builder& SetDescriptorSetOpts(const std::vector<std::pair<uint32_t, DescriptorSetLayoutOpts::Builder>>& opts) {
             if (opts.size() > MAX_DESCRIPTOR_SETS) {
                 throw std::runtime_error("Too many descriptor set options");
             }
 
             for (size_t i = 0; i < opts.size(); ++i) {
-                Desc.DescriptorSetOpts[i] = std::make_pair(opts[i].first, opts[i].second.Build());
+                Desc->DescriptorSetOpts[i] = std::make_pair(opts[i].first, opts[i].second.Build());
             }
             return *this;
         }
 
         Builder& SetPushConstantsBytes(size_t bytes) {
-            Desc.PushConstantsBytes = bytes;
+            Desc->PushConstantsBytes = bytes;
             return *this;
         }
 
         Builder& SetSource(const ShaderSource& source) {
-            Desc.Source = source;
+            Desc->Source = source;
             return *this;
         }
 
         Builder& SetComputeRust(const std::string& entry) {
-            Desc.Source = ShaderSource::CreateRust(entry);
+            Desc->Source = ShaderSource::CreateRust(entry);
             return *this;
         }
 
         Builder& SetComputeHlsl(const std::filesystem::path& path) {
-            Desc.Source = ShaderSource::CreateHlsl(path);
+            Desc->Source = ShaderSource::CreateHlsl(path);
             return *this;
         }
 
         ComputePipelineDesc Build() const {
-            return Desc;
+            return *Desc;
         }
     };
 
@@ -207,99 +225,113 @@ enum class ShaderPipelineStage {
 struct PipelineShaderDesc {
     ShaderPipelineStage Stage;
     std::optional<std::vector<std::pair<size_t, VkDescriptorSetLayoutCreateFlags>>> DescriptorSetLayoutFlags;
-    size_t PushConstantsBytes;
-    std::string Entry;
+    size_t PushConstantsBytes = 0;
+    std::string Entry = "main";
     ShaderSource Source;
 
     class Builder {
     private:
-        PipelineShaderDesc Desc;
+        std::unique_ptr<PipelineShaderDesc> Desc;
 
     public:
-        Builder(ShaderPipelineStage stage) {
-            Desc.Stage = stage;
-            Desc.Entry = "main";
+        Builder(ShaderPipelineStage stage) : Desc(std::make_unique<PipelineShaderDesc>()) {
+            Desc->Stage = stage;
+            Desc->Entry = "main";
         }
 
         Builder& SetDescriptorSetLayoutFlags(std::optional<std::vector<std::pair<size_t, VkDescriptorSetLayoutCreateFlags>>> flags) {
-            Desc.DescriptorSetLayoutFlags = flags;
+            Desc->DescriptorSetLayoutFlags = flags;
             return *this;
         }
 
         Builder& SetPushConstantsBytes(size_t bytes) {
-            Desc.PushConstantsBytes = bytes;
+            Desc->PushConstantsBytes = bytes;
             return *this;
         }
 
         Builder& SetEntry(const std::string& entry) {
-            Desc.Entry = entry;
+            Desc->Entry = entry;
             return *this;
         }
 
         Builder& SetSource(const ShaderSource& source) {
-            Desc.Source = source;
+            Desc->Source = source;
             return *this;
         }
 
         Builder& SetHlslSource(const std::filesystem::path& path) {
-            Desc.Source = ShaderSource::CreateHlsl(path);
+            Desc->Source = ShaderSource::CreateHlsl(path);
             return *this;
         }
 
         Builder& SetRustSource(const std::string& entry) {
-            Desc.Source = ShaderSource::CreateRust(entry);
+            Desc->Source = ShaderSource::CreateRust(entry);
             return *this;
         }
 
         PipelineShaderDesc Build() const {
-            return Desc;
+            return *Desc;
         }
     };
 
     static Builder CreateBuilder(ShaderPipelineStage stage) {
         return Builder(stage);
     }
+
+    bool operator==(const PipelineShaderDesc& other) const {
+        return Stage == other.Stage &&
+               DescriptorSetLayoutFlags == other.DescriptorSetLayoutFlags &&
+               PushConstantsBytes == other.PushConstantsBytes &&
+               Entry == other.Entry &&
+               Source == other.Source;
+    }
+
+    bool operator!=(const PipelineShaderDesc& other) const {
+        return !(*this == other);
+    }
 };
 
 struct RasterPipelineDesc {
     std::array<std::optional<std::pair<uint32_t, DescriptorSetLayoutOpts>>, MAX_DESCRIPTOR_SETS> DescriptorSetOpts;
-    std::shared_ptr<RenderPass> RenderPass;
-    bool FaceCull;
-    bool DepthWrite;
-    size_t PushConstantsBytes;
+    std::shared_ptr<RenderPass> RenderPassPtr;
+    bool FaceCull = false;
+    bool DepthWrite = false;
+    size_t PushConstantsBytes = 0;
 
     class Builder {
     private:
-        RasterPipelineDesc Desc;
+        std::unique_ptr<RasterPipelineDesc> Desc;
 
     public:
+        Builder() : Desc(std::make_unique<RasterPipelineDesc>()) {}
+
         Builder& SetDescriptorSetOpts(const std::array<std::optional<std::pair<uint32_t, DescriptorSetLayoutOpts>>, MAX_DESCRIPTOR_SETS>& opts) {
-            Desc.DescriptorSetOpts = opts;
+            Desc->DescriptorSetOpts = opts;
             return *this;
         }
 
         Builder& SetRenderPass(std::shared_ptr<RenderPass> renderPass) {
-            Desc.RenderPass = renderPass;
+            Desc->RenderPassPtr = renderPass;
             return *this;
         }
 
         Builder& SetFaceCull(bool faceCull) {
-            Desc.FaceCull = faceCull;
+            Desc->FaceCull = faceCull;
             return *this;
         }
 
         Builder& SetDepthWrite(bool depthWrite) {
-            Desc.DepthWrite = depthWrite;
+            Desc->DepthWrite = depthWrite;
             return *this;
         }
 
         Builder& SetPushConstantsBytes(size_t bytes) {
-            Desc.PushConstantsBytes = bytes;
+            Desc->PushConstantsBytes = bytes;
             return *this;
         }
 
         RasterPipelineDesc Build() const {
-            return Desc;
+            return *Desc;
         }
     };
 
@@ -426,9 +458,8 @@ public:
         attachmentImageInfos.reserve(AttachmentDesc.size());
         
         for (size_t i = 0; i < AttachmentDesc.size(); ++i) {
-            const auto& desc = AttachmentDesc[i];
             const auto& attachment = key.Attachments[i];
-            
+
             attachmentImageInfos.push_back(VkFramebufferAttachmentImageInfo{
                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENT_IMAGE_INFO,
                 .pNext = nullptr,
@@ -482,11 +513,11 @@ struct RenderPassDesc {
 class RenderPass {
 public:
     VkRenderPass Raw;
-    FramebufferCache FramebufferCache;
+    FramebufferCache FbCache;
 
     RenderPass(VkRenderPass renderPass, const FramebufferCache& framebufferCache)
         : Raw(renderPass)
-        , FramebufferCache(framebufferCache) {}
+        , FbCache(framebufferCache) {}
 };
 
 template<typename ShaderCode>
@@ -533,3 +564,19 @@ StageDescriptorSetLayouts MergeShaderStageLayouts(
     const std::vector<StageDescriptorSetLayouts>& stages);
 
 } // namespace tekki::backend::vulkan
+
+// Hash specialization for ShaderSource
+namespace std {
+    template<>
+    struct hash<tekki::backend::vulkan::ShaderSource> {
+        std::size_t operator()(const tekki::backend::vulkan::ShaderSource& source) const {
+            std::size_t seed = std::hash<int>{}(static_cast<int>(source.GetType()));
+            if (source.GetType() == tekki::backend::vulkan::ShaderSourceType::Rust) {
+                seed ^= std::hash<std::string>{}(source.GetRustEntry()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+            } else {
+                seed ^= std::hash<std::string>{}(source.GetHlslPath().string()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+            }
+            return seed;
+        }
+    };
+}

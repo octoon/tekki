@@ -2,8 +2,11 @@
 
 #include <vector>
 #include <memory>
+#include <array>
+#include <stdexcept>
+#include <string>
 #include <glm/glm.hpp>
-#include "frame_constants.h"
+#include "tekki/rust_shaders_shared/frame_constants.h"
 
 namespace tekki::rust_shaders {
 
@@ -14,9 +17,9 @@ public:
      */
     static void Execute(
         const glm::uvec2& dispatch_id,
-        const std::shared_ptr<void>& input_texture,
-        const std::shared_ptr<void>& output_texture,
-        const FrameConstants& frame_constants
+        [[maybe_unused]] const std::shared_ptr<void>& input_texture,
+        [[maybe_unused]] const std::shared_ptr<void>& output_texture,
+        const tekki::rust_shaders_shared::FrameConstants& frameConstants
     ) {
         try {
             const glm::uvec2 px = dispatch_id;
@@ -28,7 +31,7 @@ public:
                 glm::ivec2(0, 1)
             };
             
-            const glm::ivec2 src_px = glm::ivec2(px) * 2 + hi_px_subpixels[(frame_constants.FrameIndex & 3)];
+            const glm::ivec2 src_px = glm::ivec2(px) * 2 + hi_px_subpixels[(frameConstants.frame_index & 3)];
             
             // Note: Texture fetching and writing operations would be implemented
             // using the specific graphics API (Vulkan, DirectX, etc.)

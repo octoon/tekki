@@ -4,17 +4,15 @@
 #include <memory>
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/pass_builder.h"
+#include "tekki/render_graph/temporal.h"
+#include "tekki/render_graph/imageops.h"
 
 namespace tekki::render_graph {
 
-// Forward declarations
-class Graph;
-class Hl;
-class PassApi;
-class PassBuilder;
-class Resource;
-class ResourceRegistry;
-class Temporal;
+// Re-export commonly used types from submodules
+// This allows users to include just lib.h to get access to all render graph types
 
 namespace imageops {
 // Image operations module
@@ -23,14 +21,5 @@ namespace imageops {
 namespace renderer {
 // Renderer module
 }
-
-// Re-export commonly used types
-using Graph = Graph;
-using Hl = Hl;
-using PassApi = PassApi;
-using PassBuilder = PassBuilder;
-using Resource = Resource;
-using ResourceRegistry = ResourceRegistry;
-using Temporal = Temporal;
 
 } // namespace tekki::render_graph

@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <optional>
+#include <array>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -151,9 +152,12 @@ public:
     std::vector<struct DeferredBlob> Deferred;
 
     FlattenCtx() = default;
-    
+
     void AllocateSectionIndices();
     void Finish(std::vector<uint8_t>& writer);
+
+private:
+    void AllocateSectionIndicesImpl(size_t& counter);
 };
 
 struct DeferredBlob {

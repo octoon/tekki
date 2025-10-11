@@ -41,6 +41,7 @@ target_link_libraries(tekki-backend
         tekki-gpu-allocator
         tekki-gpu-profiler
         hassle
+        rspirv-reflect
         Vulkan::Vulkan
         spirv-cross-core
         SPIRV-Tools-static
@@ -221,6 +222,7 @@ target_include_directories(tekki-imgui
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        "C:/Users/jstzw/.conan2/p/b/imgui002a484c061c1/p/res/bindings"
 )
 
 target_link_libraries(tekki-imgui

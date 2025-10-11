@@ -5,11 +5,20 @@
 #include <cstdint>
 #include <vector>
 #include <memory>
+#include "tekki/rust_shaders_shared/util.h"
 
 namespace tekki::rust_shaders_shared {
 
+// Forward declaration
+struct GbufferData;
+
 struct GbufferDataPacked {
     glm::uvec4 v;
+
+    GbufferData Unpack() const;
+    glm::vec3 UnpackNormal() const;
+    glm::vec3 UnpackAlbedo() const;
+    glm::vec4 ToVec4() const;
 };
 
 struct GbufferData {
@@ -20,23 +29,16 @@ struct GbufferData {
     float metalness = 0.0f;
 
     GbufferData() = default;
-    
+
     GbufferDataPacked Pack() const;
 };
 
-inline float RoughnessToPerceptualRoughness(float r) {
-    return std::sqrt(r);
-}
-
-inline float PerceptualRoughnessToRoughness(float r) {
-    return r * r;
-}
-
 inline GbufferDataPacked GbufferData::Pack() const {
+    float packed_normal = PackNormal111011(normal);
     return GbufferDataPacked{
         glm::uvec4(
             PackColor888(albedo),
-            PackNormal111011(normal),
+            *reinterpret_cast<const uint32_t*>(&packed_normal),
             glm::packHalf2x16(glm::vec2(
                 RoughnessToPerceptualRoughness(roughness),
                 metalness
@@ -48,18 +50,19 @@ inline GbufferDataPacked GbufferData::Pack() const {
 
 inline GbufferData GbufferDataPacked::Unpack() const {
     glm::vec2 roughnessMetalness = glm::unpackHalf2x16(v.z);
-    
-    return GbufferData{
-        .albedo = UnpackAlbedo(),
-        .emissive = Rgb9e5ToFloat3(v.w),
-        .normal = UnpackNormal(),
-        .roughness = PerceptualRoughnessToRoughness(roughnessMetalness.x),
-        .metalness = roughnessMetalness.y
-    };
+
+    GbufferData result;
+    result.albedo = UnpackAlbedo();
+    result.emissive = Rgb9e5ToFloat3(v.w);
+    result.normal = UnpackNormal();
+    result.roughness = PerceptualRoughnessToRoughness(roughnessMetalness.x);
+    result.metalness = roughnessMetalness.y;
+    return result;
 }
 
 inline glm::vec3 GbufferDataPacked::UnpackNormal() const {
-    return UnpackNormal111011(v.y);
+    float packed_as_float = *reinterpret_cast<const float*>(&v.y);
+    return UnpackNormal111011(packed_as_float);
 }
 
 inline glm::vec3 GbufferDataPacked::UnpackAlbedo() const {
@@ -74,6 +77,7 @@ inline glm::vec4 GbufferDataPacked::ToVec4() const {
         glm::uintBitsToFloat(v.w)
     );
 }
+
 
 inline GbufferDataPacked FromUVec4(const glm::uvec4& data0) {
     return GbufferDataPacked{

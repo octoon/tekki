@@ -4,11 +4,12 @@
 #include <memory>
 #include <string>
 #include <filesystem>
+#include <array>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include "tekki/core/result.h"
-#include "tekki/mesh/TexParams.h"
-#include "tekki/mesh/GpuImage.h"
+#include "tekki/asset/TexParams.h"
+#include "tekki/asset/GpuImage.h"
 
 namespace tekki::asset {
 
@@ -92,21 +93,21 @@ enum class BcMode {
 
 class CreateGpuImage {
 public:
-    CreateGpuImage(const std::shared_ptr<RawImage>& image, const tekki::mesh::TexParams& params);
-    
-    tekki::mesh::GpuImage::Proto Create();
+    CreateGpuImage(const std::shared_ptr<RawImage>& image, const tekki::asset::TexParams& params);
+
+    tekki::asset::GpuImage::Proto Create();
 
 private:
-    tekki::mesh::GpuImage::Proto ProcessRgba8(const RawRgba8Image& src);
-    tekki::mesh::GpuImage::Proto ProcessDds(void* ddsData);
-    
+    tekki::asset::GpuImage::Proto ProcessRgba8(const RawRgba8Image& src);
+    tekki::asset::GpuImage::Proto ProcessDds(void* ddsData);
+
     std::vector<uint8_t> CompressMip(const std::vector<uint8_t>& mipData, uint32_t width, uint32_t height, BcMode bcMode, bool needsAlpha);
     void SwizzleChannels(std::vector<uint8_t>& mipData, const std::array<uint8_t, 4>& swizzle);
     std::vector<uint8_t> ProcessMip(const std::vector<uint8_t>& mipData, uint32_t width, uint32_t height, bool shouldCompress, BcMode bcMode, const std::array<uint8_t, 4>& swizzle);
     uint32_t RoundUpToBlock(uint32_t value, uint32_t minImgDim);
-    
+
     std::shared_ptr<RawImage> image_;
-    tekki::mesh::TexParams params_;
+    tekki::asset::TexParams params_;
 };
 
 namespace dds_util {

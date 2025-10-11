@@ -618,4 +618,48 @@ void Device::ReportError(const BackendError& err) {
     throw err;
 }
 
+Buffer Device::CreateBuffer(BufferDesc desc, const std::string& name, const std::vector<uint8_t>& initialData) {
+    std::lock_guard<std::mutex> lock(*globalAllocatorMutex_);
+    Buffer buffer = CreateBufferImpl(raw_, globalAllocator_.get(), desc, name);
+
+    // If initial data is provided, upload it
+    if (!initialData.empty()) {
+        auto mappedSlice = buffer.Allocation.MappedSlice();
+        if (mappedSlice) {
+            std::memcpy(mappedSlice, initialData.data(), initialData.size());
+        } else {
+            // Need to use a staging buffer
+            BufferDesc stagingDesc;
+            stagingDesc.Size = initialData.size();
+            stagingDesc.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            stagingDesc.MemoryLocation = tekki::MemoryLocation::CpuToGpu;
+
+            Buffer stagingBuffer = CreateBufferImpl(raw_, globalAllocator_.get(), stagingDesc, "staging buffer");
+            auto stagingSlice = stagingBuffer.Allocation.MappedSlice();
+            if (!stagingSlice) {
+                throw std::runtime_error("Failed to map staging buffer");
+            }
+            std::memcpy(stagingSlice, initialData.data(), initialData.size());
+
+            // Copy using command buffer
+            WithSetupCb([&](VkCommandBuffer cb) {
+                VkBufferCopy copyRegion{};
+                copyRegion.size = initialData.size();
+                vkCmdCopyBuffer(cb, stagingBuffer.Raw, buffer.Raw, 1, &copyRegion);
+            });
+
+            // Clean up staging buffer
+            ImmediateDestroyBuffer(std::move(stagingBuffer));
+        }
+    }
+
+    return buffer;
+}
+
+void Device::ImmediateDestroyBuffer(Buffer buffer) {
+    std::lock_guard<std::mutex> lock(*globalAllocatorMutex_);
+    vkDestroyBuffer(raw_, buffer.Raw, nullptr);
+    globalAllocator_->Free(std::move(buffer.Allocation));
+}
+
 } // namespace tekki::backend::vulkan

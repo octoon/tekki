@@ -3,10 +3,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdint>
+#include "tekki/rust_shaders_shared/camera.h"
 
 namespace tekki::rust_shaders_shared {
-
-struct CameraMatrices;
 
 struct ViewConstants {
     glm::mat4 ViewToClip;

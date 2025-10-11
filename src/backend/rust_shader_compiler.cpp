@@ -111,7 +111,7 @@ void CompileRustShaderCrate::Run() {
     // the builder thread as well. We'll use an atomic flag to do this.
     static std::mutex BuildTaskCancelMutex;
     static std::atomic<bool> BuildTaskCancelFlag{false};
-    
+
     {
         std::lock_guard<std::mutex> lock(BuildTaskCancelMutex);
         BuildTaskCancelFlag.store(true, std::memory_order_release);
@@ -123,51 +123,50 @@ void CompileRustShaderCrate::Run() {
         try {
             // Log info: Building Rust-GPU shaders in the background...
             CompileRustShaderCrateThread();
-        } catch (const std::exception& err) {
+        } catch (const std::exception&) {
             // Log error: Failed to build Rust-GPU shaders. Falling back to the previously compiled ones.
         }
     });
     workerThread.detach();
 
-    // And finally register a watcher on the source directory for Rust shaders.
-    for (const auto& srcDir : srcDirs) {
-        try {
-            auto invalidationTrigger = GetInvalidationTrigger();
-            FileWatcher::GetInstance().Watch(srcDir, [invalidationTrigger](const FileWatcher::Event& event) {
-                if (event.Type == FileWatcher::EventType::Write) {
-                    invalidationTrigger();
-                }
-            });
-        } catch (const std::exception& e) {
-            throw std::runtime_error("CompileRustShaderCrate: trying to watch " + srcDir.string() + ": " + e.what());
-        }
-    }
+    // TODO: Register a watcher on the source directory for Rust shaders.
+    // This requires implementing FileWatcher properly with efsw
+    // For now, we skip file watching and just use the cached shaders
 }
 
 // Runs cargo in a sub-process to execute the rust shader builder.
 void CompileRustShaderCrate::CompileRustShaderCrateThread() {
     auto builderDir = NormalizedPathFromVfs("/kajiya/crates/bin/rust-shader-builder");
-    
-    // Remove environment variables that might interfere
-    std::string command = "env -i PATH=\"$PATH\" cargo run --release --";
+
+    // Build command
+    std::string command = "cargo run --release --";
     std::string workingDir = builderDir.string();
-    
+
     // Execute the command
-    std::string fullCommand = "cd \"" + workingDir + "\" && " + command;
-    
+    std::string fullCommand = "cd /d \"" + workingDir + "\" && " + command;
+
+#ifdef _WIN32
+    FILE* pipe = _popen(fullCommand.c_str(), "r");
+#else
     FILE* pipe = popen(fullCommand.c_str(), "r");
+#endif
+
     if (!pipe) {
         throw std::runtime_error("failed to execute Rust-GPU builder");
     }
-    
+
     char buffer[128];
     std::string result = "";
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         result += buffer;
     }
-    
+
+#ifdef _WIN32
+    int returnCode = _pclose(pipe);
+#else
     int returnCode = pclose(pipe);
-    
+#endif
+
     if (returnCode != 0) {
         throw std::runtime_error("Shader builder failed:\n" + result);
     } else {

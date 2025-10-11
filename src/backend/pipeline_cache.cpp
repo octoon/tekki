@@ -7,55 +7,61 @@
 
 namespace tekki::backend {
 
-CompilePipelineShaders::CompilePipelineShaders(std::vector<PipelineShaderDesc> shaderDescs)
+CompilePipelineShaders::CompilePipelineShaders(std::vector<vulkan::PipelineShaderDesc> shaderDescs)
     : ShaderDescs(std::move(shaderDescs)) {}
 
 std::future<std::shared_ptr<CompiledPipelineShaders>> CompilePipelineShaders::Run() {
-    return std::async(std::launch::async, [this]() -> std::shared_ptr<CompiledPipelineShaders> {
+    return std::async(std::launch::async, [shaderDescs = this->ShaderDescs]() -> std::shared_ptr<CompiledPipelineShaders> {
         try {
             std::vector<std::future<std::shared_ptr<CompiledShader>>> futures;
-            
-            for (const auto& desc : ShaderDescs) {
-                if (std::holds_alternative<ShaderSource::Rust>(desc.Source)) {
-                    const auto& rustSource = std::get<ShaderSource::Rust>(desc.Source);
-                    futures.push_back(std::async(std::launch::async, [entry = rustSource.Entry]() {
-                        return CompileRustShader{entry}.Run();
+
+            for (const auto& desc : shaderDescs) {
+                if (desc.Source.GetType() == vulkan::ShaderSourceType::Rust) {
+                    std::string entry = desc.Source.GetRustEntry();
+                    futures.push_back(std::async(std::launch::async, [entry]() {
+                        auto shader = CompileRustShader{entry}.Run();
+                        return std::make_shared<CompiledShader>(std::move(shader));
                     }));
-                } else if (std::holds_alternative<ShaderSource::Hlsl>(desc.Source)) {
-                    const auto& hlslSource = std::get<ShaderSource::Hlsl>(desc.Source);
+                } else if (desc.Source.GetType() == vulkan::ShaderSourceType::Hlsl) {
+                    std::filesystem::path path = desc.Source.GetHlslPath();
                     std::string profile;
                     switch (desc.Stage) {
-                        case ShaderPipelineStage::Vertex:
+                        case vulkan::ShaderPipelineStage::Vertex:
                             profile = "vs";
                             break;
-                        case ShaderPipelineStage::Pixel:
+                        case vulkan::ShaderPipelineStage::Pixel:
                             profile = "ps";
                             break;
-                        case ShaderPipelineStage::RayGen:
-                        case ShaderPipelineStage::RayMiss:
-                        case ShaderPipelineStage::RayClosestHit:
+                        case vulkan::ShaderPipelineStage::RayGen:
+                        case vulkan::ShaderPipelineStage::RayMiss:
+                        case vulkan::ShaderPipelineStage::RayClosestHit:
                             profile = "lib";
                             break;
                     }
-                    futures.push_back(std::async(std::launch::async, [path = hlslSource.Path, profile]() {
-                        return CompileShader{path, profile}.Run();
+                    futures.push_back(std::async(std::launch::async, [path, profile]() {
+                        auto shader = ShaderCompiler::Compile(CompileShader{path, profile});
+                        return std::make_shared<CompiledShader>(std::move(shader));
                     }));
                 }
             }
-            
+
             std::vector<std::shared_ptr<CompiledShader>> shaders;
             for (auto& future : futures) {
                 shaders.push_back(future.get());
             }
-            
+
             auto result = std::make_shared<CompiledPipelineShaders>();
             for (size_t i = 0; i < shaders.size(); ++i) {
-                result->Shaders.push_back(PipelineShader<std::shared_ptr<CompiledShader>>{
+                result->Shaders.push_back(vulkan::PipelineShader<std::shared_ptr<CompiledShader>>(
                     shaders[i],
-                    ShaderDescs[i]
-                });
+                    vulkan::PipelineShaderDesc::CreateBuilder(shaderDescs[i].Stage)
+                        .SetDescriptorSetLayoutFlags(shaderDescs[i].DescriptorSetLayoutFlags)
+                        .SetPushConstantsBytes(shaderDescs[i].PushConstantsBytes)
+                        .SetEntry(shaderDescs[i].Entry)
+                        .SetSource(shaderDescs[i].Source)
+                ));
             }
-            
+
             return result;
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Failed to compile pipeline shaders: ") + e.what());
@@ -63,10 +69,10 @@ std::future<std::shared_ptr<CompiledPipelineShaders>> CompilePipelineShaders::Ru
     });
 }
 
-PipelineCache::PipelineCache(const std::shared_ptr<LazyCache>& lazyCache)
-    : LazyCache(lazyCache) {}
+PipelineCache::PipelineCache(const std::shared_ptr<backend::LazyCache>& lazyCache)
+    : LazyCachePtr(lazyCache) {}
 
-ComputePipelineHandle PipelineCache::RegisterCompute(const ComputePipelineDesc& desc) {
+ComputePipelineHandle PipelineCache::RegisterCompute(const vulkan::ComputePipelineDesc& desc) {
     auto it = ComputeShaderToHandle.find(desc.Source);
     if (it != ComputeShaderToHandle.end()) {
         return it->second;
@@ -75,16 +81,20 @@ ComputePipelineHandle PipelineCache::RegisterCompute(const ComputePipelineDesc& 
     ComputePipelineHandle handle(ComputeEntries.size());
     
     std::shared_ptr<Lazy<CompiledShader>> compileTask;
-    if (std::holds_alternative<ShaderSource::Rust>(desc.Source)) {
-        const auto& rustSource = std::get<ShaderSource::Rust>(desc.Source);
-        compileTask = std::make_shared<Lazy<CompiledShader>>(
-            [entry = rustSource.Entry]() { return CompileRustShader{entry}.Run(); }
-        );
-    } else if (std::holds_alternative<ShaderSource::Hlsl>(desc.Source)) {
-        const auto& hlslSource = std::get<ShaderSource::Hlsl>(desc.Source);
-        compileTask = std::make_shared<Lazy<CompiledShader>>(
-            [path = hlslSource.Path]() { return CompileShader{path, "cs"}.Run(); }
-        );
+    if (desc.Source.GetType() == vulkan::ShaderSourceType::Rust) {
+        std::string entry = desc.Source.GetRustEntry();
+        auto future = std::async(std::launch::async, [entry]() {
+            auto shader = CompileRustShader{entry}.Run();
+            return std::make_shared<CompiledShader>(std::move(shader));
+        }).share();
+        compileTask = std::make_shared<Lazy<CompiledShader>>(future);
+    } else if (desc.Source.GetType() == vulkan::ShaderSourceType::Hlsl) {
+        std::filesystem::path path = desc.Source.GetHlslPath();
+        auto future = std::async(std::launch::async, [path]() {
+            auto shader = ShaderCompiler::Compile(CompileShader{path, "cs"});
+            return std::make_shared<CompiledShader>(std::move(shader));
+        }).share();
+        compileTask = std::make_shared<Lazy<CompiledShader>>(future);
     } else {
         throw std::invalid_argument("Unsupported shader source type");
     }
@@ -99,7 +109,7 @@ ComputePipelineHandle PipelineCache::RegisterCompute(const ComputePipelineDesc& 
     return handle;
 }
 
-std::shared_ptr<ComputePipeline> PipelineCache::GetCompute(ComputePipelineHandle handle) {
+std::shared_ptr<vulkan::ComputePipeline> PipelineCache::GetCompute(ComputePipelineHandle handle) {
     auto it = ComputeEntries.find(handle);
     if (it == ComputeEntries.end()) {
         throw std::invalid_argument("Invalid compute pipeline handle");
@@ -110,18 +120,19 @@ std::shared_ptr<ComputePipeline> PipelineCache::GetCompute(ComputePipelineHandle
     return it->second.Pipeline;
 }
 
-RasterPipelineHandle PipelineCache::RegisterRaster(const std::vector<PipelineShaderDesc>& shaders, const RasterPipelineDesc& desc) {
+RasterPipelineHandle PipelineCache::RegisterRaster(const std::vector<vulkan::PipelineShaderDesc>& shaders, const vulkan::RasterPipelineDesc& desc) {
     auto it = RasterShadersToHandle.find(shaders);
     if (it != RasterShadersToHandle.end()) {
         return it->second;
     }
     
     RasterPipelineHandle handle(RasterEntries.size());
-    
-    auto compileTask = std::make_shared<Lazy<CompiledPipelineShaders>>(
-        [shaders]() { return CompilePipelineShaders{shaders}.Run().get(); }
-    );
-    
+
+    auto future = std::async(std::launch::async, [shaders]() {
+        return CompilePipelineShaders{shaders}.Run().get();
+    }).share();
+    auto compileTask = std::make_shared<Lazy<CompiledPipelineShaders>>(future);
+
     RasterEntries[handle] = RasterPipelineCacheEntry{
         compileTask,
         desc,
@@ -132,7 +143,7 @@ RasterPipelineHandle PipelineCache::RegisterRaster(const std::vector<PipelineSha
     return handle;
 }
 
-std::shared_ptr<RasterPipeline> PipelineCache::GetRaster(RasterPipelineHandle handle) {
+std::shared_ptr<vulkan::RasterPipeline> PipelineCache::GetRaster(RasterPipelineHandle handle) {
     auto it = RasterEntries.find(handle);
     if (it == RasterEntries.end()) {
         throw std::invalid_argument("Invalid raster pipeline handle");
@@ -143,18 +154,19 @@ std::shared_ptr<RasterPipeline> PipelineCache::GetRaster(RasterPipelineHandle ha
     return it->second.Pipeline;
 }
 
-RtPipelineHandle PipelineCache::RegisterRayTracing(const std::vector<PipelineShaderDesc>& shaders, const RayTracingPipelineDesc& desc) {
+RtPipelineHandle PipelineCache::RegisterRayTracing(const std::vector<vulkan::PipelineShaderDesc>& shaders, const vulkan::RayTracingPipelineDesc& desc) {
     auto it = RtShadersToHandle.find(shaders);
     if (it != RtShadersToHandle.end()) {
         return it->second;
     }
     
     RtPipelineHandle handle(RtEntries.size());
-    
-    auto compileTask = std::make_shared<Lazy<CompiledPipelineShaders>>(
-        [shaders]() { return CompilePipelineShaders{shaders}.Run().get(); }
-    );
-    
+
+    auto future = std::async(std::launch::async, [shaders]() {
+        return CompilePipelineShaders{shaders}.Run().get();
+    }).share();
+    auto compileTask = std::make_shared<Lazy<CompiledPipelineShaders>>(future);
+
     RtEntries[handle] = RtPipelineCacheEntry{
         compileTask,
         desc,
@@ -165,7 +177,7 @@ RtPipelineHandle PipelineCache::RegisterRayTracing(const std::vector<PipelineSha
     return handle;
 }
 
-std::shared_ptr<RayTracingPipeline> PipelineCache::GetRayTracing(RtPipelineHandle handle) {
+std::shared_ptr<vulkan::RayTracingPipeline> PipelineCache::GetRayTracing(RtPipelineHandle handle) {
     auto it = RtEntries.find(handle);
     if (it == RtEntries.end()) {
         throw std::invalid_argument("Invalid ray tracing pipeline handle");
@@ -177,23 +189,27 @@ std::shared_ptr<RayTracingPipeline> PipelineCache::GetRayTracing(RtPipelineHandl
 }
 
 void PipelineCache::InvalidateStalePipelines() {
-    for (auto& entry : ComputeEntries) {
-        if (entry.second.Pipeline && entry.second.LazyHandle->IsStale()) {
-            entry.second.Pipeline = nullptr;
-        }
-    }
-    
-    for (auto& entry : RasterEntries) {
-        if (entry.second.Pipeline && entry.second.LazyHandle->IsStale()) {
-            entry.second.Pipeline = nullptr;
-        }
-    }
-    
-    for (auto& entry : RtEntries) {
-        if (entry.second.Pipeline && entry.second.LazyHandle->IsStale()) {
-            entry.second.Pipeline = nullptr;
-        }
-    }
+    // TODO: Implement stale pipeline detection
+    // The Rust version uses turbosloth::Lazy::is_stale() to detect if shader sources have changed
+    // For now, we skip this check since hot-reloading is not yet implemented
+
+    // for (auto& entry : ComputeEntries) {
+    //     if (entry.second.Pipeline && entry.second.LazyHandle->IsStale()) {
+    //         entry.second.Pipeline = nullptr;
+    //     }
+    // }
+
+    // for (auto& entry : RasterEntries) {
+    //     if (entry.second.Pipeline && entry.second.LazyHandle->IsStale()) {
+    //         entry.second.Pipeline = nullptr;
+    //     }
+    // }
+
+    // for (auto& entry : RtEntries) {
+    //     if (entry.second.Pipeline && entry.second.LazyHandle->IsStale()) {
+    //         entry.second.Pipeline = nullptr;
+    //     }
+    // }
 }
 
 void PipelineCache::ParallelCompileShaders(const std::shared_ptr<vulkan::Device>& device) {
@@ -270,7 +286,7 @@ void PipelineCache::ParallelCompileShaders(const std::shared_ptr<vulkan::Device>
         for (auto& task : tasks) {
             try {
                 results.push_back(task.get());
-            } catch (const std::exception& e) {
+            } catch (...) {
                 throw;
             }
         }
@@ -280,8 +296,10 @@ void PipelineCache::ParallelCompileShaders(const std::shared_ptr<vulkan::Device>
                 case CompileTaskOutputType::Compute: {
                     auto& entry = ComputeEntries.at(result.ComputeHandle);
                     try {
-                        entry.Pipeline = std::make_shared<ComputePipeline>(
-                            CreateComputePipeline(device.get(), result.CompiledShader->Spirv, entry.Desc)
+                        // Convert from std::vector<uint8_t> to std::vector<uint32_t> if needed
+                        // CreateComputePipeline expects std::vector<uint8_t>
+                        entry.Pipeline = std::make_shared<vulkan::ComputePipeline>(
+                            vulkan::CreateComputePipeline(device.get(), result.CompiledShader->Spirv, entry.Desc)
                         );
                     } catch (const std::exception& e) {
                         throw std::runtime_error(std::string("Failed to create compute pipeline: ") + e.what());
@@ -291,15 +309,19 @@ void PipelineCache::ParallelCompileShaders(const std::shared_ptr<vulkan::Device>
                 case CompileTaskOutputType::Raster: {
                     auto& entry = RasterEntries.at(result.RasterHandle);
                     try {
-                        std::vector<PipelineShader<std::vector<uint32_t>>> compiledShaders;
+                        std::vector<vulkan::PipelineShader<std::vector<uint8_t>>> compiledShaders;
                         for (const auto& shader : result.CompiledPipelineShaders->Shaders) {
-                            compiledShaders.push_back(PipelineShader<std::vector<uint32_t>>{
+                            compiledShaders.push_back(vulkan::PipelineShader<std::vector<uint8_t>>(
                                 shader.Code->Spirv,
-                                shader.Desc
-                            });
+                                vulkan::PipelineShaderDesc::CreateBuilder(shader.Desc.Stage)
+                                    .SetDescriptorSetLayoutFlags(shader.Desc.DescriptorSetLayoutFlags)
+                                    .SetPushConstantsBytes(shader.Desc.PushConstantsBytes)
+                                    .SetEntry(shader.Desc.Entry)
+                                    .SetSource(shader.Desc.Source)
+                            ));
                         }
-                        entry.Pipeline = std::make_shared<RasterPipeline>(
-                            CreateRasterPipeline(device.get(), compiledShaders, entry.Desc)
+                        entry.Pipeline = std::make_shared<vulkan::RasterPipeline>(
+                            vulkan::CreateRasterPipeline(device.get(), compiledShaders, entry.Desc)
                         );
                     } catch (const std::exception& e) {
                         throw std::runtime_error(std::string("Failed to create raster pipeline: ") + e.what());
@@ -309,16 +331,23 @@ void PipelineCache::ParallelCompileShaders(const std::shared_ptr<vulkan::Device>
                 case CompileTaskOutputType::Rt: {
                     auto& entry = RtEntries.at(result.RtHandle);
                     try {
-                        std::vector<PipelineShader<std::vector<uint32_t>>> compiledShaders;
+                        std::vector<vulkan::PipelineShader<std::vector<uint32_t>>> compiledShaders;
                         for (const auto& shader : result.CompiledPipelineShaders->Shaders) {
-                            compiledShaders.push_back(PipelineShader<std::vector<uint32_t>>{
-                                shader.Code->Spirv,
-                                shader.Desc
-                            });
+                            // Convert from std::vector<uint8_t> to std::vector<uint32_t>
+                            const auto& spirv = shader.Code->Spirv;
+                            std::vector<uint32_t> spirv32(spirv.size() / 4);
+                            std::memcpy(spirv32.data(), spirv.data(), spirv.size());
+
+                            compiledShaders.push_back(vulkan::PipelineShader<std::vector<uint32_t>>(
+                                spirv32,
+                                vulkan::PipelineShaderDesc::CreateBuilder(shader.Desc.Stage)
+                                    .SetDescriptorSetLayoutFlags(shader.Desc.DescriptorSetLayoutFlags)
+                                    .SetPushConstantsBytes(shader.Desc.PushConstantsBytes)
+                                    .SetEntry(shader.Desc.Entry)
+                                    .SetSource(shader.Desc.Source)
+                            ));
                         }
-                        entry.Pipeline = std::make_shared<RayTracingPipeline>(
-                            CreateRayTracingPipeline(device.get(), compiledShaders, entry.Desc)
-                        );
+                        entry.Pipeline = vulkan::CreateRayTracingPipeline(device, compiledShaders, entry.Desc);
                     } catch (const std::exception& e) {
                         throw std::runtime_error(std::string("Failed to create ray tracing pipeline: ") + e.what());
                     }

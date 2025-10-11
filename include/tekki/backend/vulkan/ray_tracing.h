@@ -61,15 +61,17 @@ struct RayTracingShaderTableDesc {
 class RayTracingAcceleration {
 public:
     VkAccelerationStructureKHR Raw;
-    
-private:
     Buffer BackingBuffer;
+
+    friend class Device;
 };
 
 class RayTracingAccelerationScratchBuffer {
-private:
+public:
     std::shared_ptr<std::mutex> BufferMutex;
     Buffer Buffer;
+
+    friend class Device;
 };
 
 class RayTracingShaderTable {
@@ -96,10 +98,10 @@ public:
 struct RayTracingPipelineDesc {
     std::array<std::optional<std::pair<uint32_t, DescriptorSetLayoutOpts>>, MAX_DESCRIPTOR_SETS> DescriptorSetOpts;
     uint32_t MaxPipelineRayRecursionDepth;
-    
+
     RayTracingPipelineDesc() : MaxPipelineRayRecursionDepth(1) {}
-    
-    RayTracingPipelineDesc MaxPipelineRayRecursionDepth(uint32_t depth) {
+
+    RayTracingPipelineDesc& WithMaxPipelineRayRecursionDepth(uint32_t depth) {
         MaxPipelineRayRecursionDepth = depth;
         return *this;
     }

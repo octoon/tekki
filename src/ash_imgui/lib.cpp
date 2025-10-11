@@ -1,4 +1,3 @@
-```cpp
 #include "tekki/ash_imgui/lib.h"
 #include <array>
 #include <vector>
@@ -39,7 +38,7 @@ uint32_t Renderer::AlignUp(uint32_t x, uint32_t alignment) {
     return (x + alignment - 1) & ~(alignment - 1);
 }
 
-Renderer::Renderer(VkDevice device, const VkPhysicalDeviceProperties& physicalDeviceProperties, const VkPhysicalDeviceMemoryProperties& physicalDeviceMemoryProperties, ImGuiContext* imgui) {
+Renderer::Renderer(VkDevice device, const VkPhysicalDeviceProperties& physicalDeviceProperties, const VkPhysicalDeviceMemoryProperties& physicalDeviceMemoryProperties, [[maybe_unused]] ImGuiContext* imgui) {
     try {
         // Load shaders
         std::vector<uint8_t> vertexShaderBytes; // Should be populated with actual SPIR-V data
@@ -285,7 +284,7 @@ Renderer::Renderer(VkDevice device, const VkPhysicalDeviceProperties& physicalDe
         
         vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 
-        AtomSize = physicalDeviceProperties.limits.nonCoherentAtomSize;
+        AtomSize = static_cast<uint32_t>(physicalDeviceProperties.limits.nonCoherentAtomSize);
 
         // Copy font data to mapped memory
         uint8_t* imageBase = reinterpret_cast<uint8_t*>(HostMapping) + imageMemOffset;
@@ -323,7 +322,7 @@ Renderer::~Renderer() {
     // Actual cleanup would require access to VkDevice
 }
 
-void Renderer::BeginFrame(VkDevice device, VkCommandBuffer commandBuffer) {
+void Renderer::BeginFrame([[maybe_unused]] VkDevice device, VkCommandBuffer commandBuffer) {
     FrameIndex = (1 + FrameIndex) % FrameCount;
 
     if (ImageNeedsCopy) {
@@ -475,4 +474,27 @@ VkPipeline Renderer::CreatePipeline(VkDevice device, VkRenderPass renderPass) {
     VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo{};
     pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     pipelineDynamicStateCreateInfo.dynamicStateCount = 2;
-    pipelineDynamicStateCreateInfo.pDynamicStates
+    pipelineDynamicStateCreateInfo.pDynamicStates = dynamicStates;
+
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo{};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineCreateInfo.stageCount = 2;
+    pipelineCreateInfo.pStages = shaderStageCreateInfo;
+    pipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+    pipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+    pipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+    pipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+    pipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+    pipelineCreateInfo.pDynamicState = &pipelineDynamicStateCreateInfo;
+    pipelineCreateInfo.layout = PipelineLayout;
+    pipelineCreateInfo.renderPass = renderPass;
+
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &Pipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create graphics pipeline");
+    }
+
+    return Pipeline;
+}
+
+} // namespace tekki::ash_imgui

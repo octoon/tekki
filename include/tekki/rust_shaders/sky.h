@@ -2,8 +2,10 @@
 
 #include <vector>
 #include <memory>
+#include <array>
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
+#include "tekki/rust_shaders_shared/frame_constants.h"
 
 namespace tekki::rust_shaders {
 
@@ -30,8 +32,8 @@ public:
     }
 
     static void CompSkyCubeCs(
-        const std::vector<float>& outputTex,
-        const FrameConstants& frameConstants,
+        [[maybe_unused]] const std::vector<float>& outputTex,
+        const tekki::rust_shaders_shared::FrameConstants& frameConstants,
         const glm::uvec3& px
     ) {
         try {
@@ -41,8 +43,8 @@ public:
 
             glm::vec3 output = AtmosphereDefault(
                 dir,
-                glm::vec3(frameConstants.SunDirection),
-                glm::vec3(frameConstants.SunColorMultiplier) * frameConstants.PreExposure
+                glm::vec3(frameConstants.sun_direction),
+                glm::vec3(frameConstants.sun_color_multiplier) * frameConstants.pre_exposure
             );
             
             // output_tex.write(px, output.extend(1.0));
@@ -55,12 +57,12 @@ public:
 
 private:
     static glm::vec3 IntegrateScattering(
-        const glm::vec3& rayStart,
-        const glm::vec3& rayDir,
-        float rayLength,
-        const glm::vec3& lightDir,
-        const glm::vec3& lightColor,
-        glm::vec3& transmittance
+        [[maybe_unused]] const glm::vec3& rayStart,
+        [[maybe_unused]] const glm::vec3& rayDir,
+        [[maybe_unused]] float rayLength,
+        [[maybe_unused]] const glm::vec3& lightDir,
+        [[maybe_unused]] const glm::vec3& lightColor,
+        [[maybe_unused]] glm::vec3& transmittance
     ) {
         // Implementation of atmospheric scattering integration
         // This would need to be implemented based on the actual scattering model

@@ -24,12 +24,17 @@ CompiledShader ShaderCompiler::Compile(const CompileShader& compileInfo) {
         if (ext == ".glsl") {
             throw std::runtime_error("GLSL shader compilation not implemented");
         } else if (ext == ".spv") {
-            auto spirv = LoadFile::Load(compileInfo.Path);
+            auto loader = LoadFile(compileInfo.Path);
+            auto spirv = loader.Run();
             return CompiledShader{name, spirv};
         } else if (ext == ".hlsl") {
-            std::string file_path = compileInfo.Path.string();
-            auto include_provider = std::make_shared<ShaderIncludeProvider>(nullptr);
-            auto source = shader_prepper::process_file(file_path, include_provider, std::string());
+            // Read the HLSL file directly
+            std::ifstream file(compileInfo.Path, std::ios::binary);
+            if (!file.is_open()) {
+                throw std::runtime_error("Failed to open shader file: " + compileInfo.Path.string());
+            }
+            std::string source((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
             std::string target_profile = compileInfo.Profile + "_6_4";
             auto spirv = CompileGenericShaderHlslImpl(name, source, target_profile);
             return CompiledShader{name, spirv};
@@ -108,9 +113,12 @@ std::vector<uint8_t> ShaderCompiler::CompileGenericShaderHlslImpl(
 
 RayTracingShader RayTracingShaderCompiler::Compile(const CompileRayTracingShader& compileInfo) {
     try {
-        std::string file_path = compileInfo.Path.string();
-        auto include_provider = std::make_shared<ShaderIncludeProvider>(nullptr);
-        auto source = shader_prepper::process_file(file_path, include_provider, std::string());
+        // Read the HLSL file directly
+        std::ifstream file(compileInfo.Path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open shader file: " + compileInfo.Path.string());
+        }
+        std::string source((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
         std::string ext = compileInfo.Path.extension().string();
         if (ext.empty()) {
@@ -142,7 +150,7 @@ ShaderIncludeProvider::ShaderIncludeProvider(std::shared_ptr<void> context)
 
 std::string ShaderIncludeProvider::GetInclude(const std::string& path, const std::string& parentFile) {
     std::string resolved_path;
-    
+
     if (!path.empty() && path[0] == '/') {
         resolved_path = path;
     } else {
@@ -151,19 +159,19 @@ std::string ShaderIncludeProvider::GetInclude(const std::string& path, const std
     }
 
     try {
-        auto blob = LoadFile::Load(resolved_path);
+        auto loader = LoadFile(resolved_path);
+        auto blob = loader.Run();
         return std::string(reinterpret_cast<const char*>(blob.data()), blob.size());
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("Failed loading shader include ") + path + ": " + e.what());
     }
 }
 
-glm::uvec3 GetComputeShaderLocalSizeFromSpirv(const std::vector<uint32_t>& spirv) {
+glm::uvec3 GetComputeShaderLocalSizeFromSpirv([[maybe_unused]] const std::vector<uint32_t>& spirv) {
     // TODO: Implement SPIR-V parsing to extract compute shader local size
     // This requires SPIRV-Reflect or similar library
     // For now, return a default work group size
     throw std::runtime_error("SPIR-V reflection not yet implemented - requires SPIRV-Reflect integration");
-    return glm::uvec3(1, 1, 1);
 }
 
 } // namespace tekki::backend
