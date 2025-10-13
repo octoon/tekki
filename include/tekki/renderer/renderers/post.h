@@ -9,19 +9,20 @@
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/buffer.h"
 #include "tekki/backend/vulkan/device.h"
-#include "tekki/render_graph/render_graph.h"
-#include "tekki/render_graph/simple_render_pass.h"
-#include "tekki/world_renderer/histogram_clipping.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/renderer/histogram_clipping.h"
 
 namespace tekki::renderer::renderers {
+
+namespace rg = tekki::render_graph;
 
 class PostProcessRenderer {
 public:
     PostProcessRenderer(std::shared_ptr<tekki::backend::vulkan::Device> device);
-    
-    std::shared_ptr<tekki::render_graph::ImageHandle> Render(
+
+    rg::Handle<rg::Image> Render(
         tekki::render_graph::RenderGraph& renderGraph,
-        std::shared_ptr<tekki::render_graph::ImageHandle> input,
+        rg::Handle<rg::Image> input,
         VkDescriptorSet bindlessDescriptorSet,
         float postExposureMultiplier,
         float contrast,
@@ -34,22 +35,22 @@ private:
     std::shared_ptr<tekki::backend::vulkan::Buffer> histogramBuffer;
     float imageLog2Luminance;
 
-    void CalculateLuminanceHistogram(
+    rg::Handle<rg::Buffer> CalculateLuminanceHistogram(
         tekki::render_graph::RenderGraph& renderGraph,
-        std::shared_ptr<tekki::render_graph::ImageHandle> blurPyramid
+        rg::Handle<rg::Image> blurPyramid
     );
-    
+
     void ReadBackHistogram(HistogramClipping exposureHistogramClipping);
 };
 
-std::shared_ptr<tekki::render_graph::ImageHandle> BlurPyramid(
+rg::Handle<rg::Image> BlurPyramid(
     tekki::render_graph::RenderGraph& renderGraph,
-    std::shared_ptr<tekki::render_graph::ImageHandle> input
+    rg::Handle<rg::Image> input
 );
 
-std::shared_ptr<tekki::render_graph::ImageHandle> ReverseBlurPyramid(
+rg::Handle<rg::Image> ReverseBlurPyramid(
     tekki::render_graph::RenderGraph& renderGraph,
-    std::shared_ptr<tekki::render_graph::ImageHandle> inputPyramid
+    rg::Handle<rg::Image> inputPyramid
 );
 
 } // namespace tekki::renderer::renderers

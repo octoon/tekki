@@ -178,6 +178,11 @@ public:
     Buffer CreateBuffer(BufferDesc desc, const std::string& name, const std::vector<uint8_t>& initialData = {});
     void ImmediateDestroyBuffer(Buffer buffer);
 
+    // Image management
+    std::shared_ptr<class Image> CreateImage(const struct ImageDesc& desc, const std::vector<uint8_t>& initialData = {});
+    std::shared_ptr<class Image> CreateImage(const struct ImageDesc& desc, const std::vector<struct ImageSubResourceData>& initialData);
+    void ImmediateDestroyImage(std::shared_ptr<class Image> image);
+
     // Error handling
     void RecordCrashMarker(const CommandBuffer& cb, const std::string& name);
     void ReportError(const BackendError& err);

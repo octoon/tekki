@@ -67,20 +67,82 @@ struct GraphResourceCreateInfo {
     GraphResourceDesc Desc;
 };
 
-enum class GraphResourceImportInfo {
-    Image,
-    Buffer,
-    RayTracingAcceleration,
-    SwapchainImage
+// Import info for different resource types - matching Rust's enum with associated data
+struct GraphResourceImportInfo {
+    struct ImageImport {
+        std::shared_ptr<Image> resource;
+        vk_sync::AccessType access_type;
+    };
+
+    struct BufferImport {
+        std::shared_ptr<Buffer> resource;
+        vk_sync::AccessType access_type;
+    };
+
+    struct RayTracingAccelerationImport {
+        std::shared_ptr<RayTracingAcceleration> resource;
+        vk_sync::AccessType access_type;
+    };
+
+    struct SwapchainImage {};
+
+    std::variant<ImageImport, BufferImport, RayTracingAccelerationImport, SwapchainImage> data;
+
+    // Helper constructors
+    static GraphResourceImportInfo Image(std::shared_ptr<class Image> resource, vk_sync::AccessType access_type) {
+        GraphResourceImportInfo info;
+        info.data = ImageImport{resource, access_type};
+        return info;
+    }
+
+    static GraphResourceImportInfo Buffer(std::shared_ptr<class Buffer> resource, vk_sync::AccessType access_type) {
+        GraphResourceImportInfo info;
+        info.data = BufferImport{resource, access_type};
+        return info;
+    }
+
+    static GraphResourceImportInfo RayTracingAcceleration(std::shared_ptr<class RayTracingAcceleration> resource, vk_sync::AccessType access_type) {
+        GraphResourceImportInfo info;
+        info.data = RayTracingAccelerationImport{resource, access_type};
+        return info;
+    }
+
+    static GraphResourceImportInfo Swapchain() {
+        GraphResourceImportInfo info;
+        info.data = SwapchainImage{};
+        return info;
+    }
 };
 
 struct GraphResourceInfo {
     std::variant<GraphResourceCreateInfo, GraphResourceImportInfo> Info;
 };
 
-enum class ExportableGraphResource {
-    Image,
-    Buffer
+// Exportable graph resource - wraps handles for export
+class ExportableGraphResource {
+public:
+    ExportableGraphResource(const Handle<Image>& handle)
+        : type_(Type::Image), image_handle_(handle) {}
+    ExportableGraphResource(const Handle<Buffer>& handle)
+        : type_(Type::Buffer), buffer_handle_(handle) {}
+
+    enum class Type {
+        Image,
+        Buffer
+    };
+
+    Type GetType() const { return type_; }
+    const Handle<Image>& GetImageHandle() const { return image_handle_; }
+    const Handle<Buffer>& GetBufferHandle() const { return buffer_handle_; }
+
+    GraphRawResourceHandle GetRaw() const {
+        return type_ == Type::Image ? image_handle_.raw : buffer_handle_.raw;
+    }
+
+private:
+    Type type_;
+    Handle<Image> image_handle_;
+    Handle<Buffer> buffer_handle_;
 };
 
 struct RgComputePipelineHandle {
@@ -120,6 +182,22 @@ struct RenderDebugHook {
 
 struct GraphDebugHook {
     RenderDebugHook RenderDebugHook;
+};
+
+// Pending debug pass structure
+struct PendingDebugPass {
+    Handle<Image> srcHandle;
+};
+
+// Forward declare for RenderGraph
+struct ResourceLifetime {
+    std::optional<std::size_t> LastAccess;
+};
+
+struct ResourceInfo {
+    std::vector<ResourceLifetime> Lifetimes;
+    std::vector<vk::ImageUsageFlags> ImageUsageFlags;
+    std::vector<vk::BufferUsageFlags> BufferUsageFlags;
 };
 
 class RenderGraph {
@@ -166,21 +244,11 @@ private:
     std::optional<PendingDebugPass> HookDebugPass(const RecordedPass& pass);
 };
 
-struct ResourceLifetime {
-    std::optional<std::size_t> LastAccess;
-};
-
-struct ResourceInfo {
-    std::vector<ResourceLifetime> Lifetimes;
-    std::vector<vk::ImageUsageFlags> ImageUsageFlags;
-    std::vector<vk::BufferUsageFlags> BufferUsageFlags;
-};
-
 struct RenderGraphExecutionParams {
-    const Device* Device;
+    Device* Device;
     PipelineCache* PipelineCache;
     vk::DescriptorSet FrameDescriptorSet;
-    FrameConstantsLayout FrameConstantsLayout;
+    tekki::renderer::FrameConstantsLayout FrameConstantsLayout;
     const VkProfilerData* ProfilerData;
 };
 
@@ -213,7 +281,7 @@ public:
 
 private:
     static void RecordPassCb(const RecordedPass& pass, ResourceRegistry* resourceRegistry, const CommandBuffer& cb);
-    static void TransitionResource(const Device* device, const CommandBuffer& cb, RegistryResource* resource, const PassResourceAccessType& access, bool debug, const std::string& dbgStr);
+    static void TransitionResource(Device* device, const CommandBuffer& cb, RegistryResource* resource, const PassResourceAccessType& access, bool debug, const std::string& dbgStr);
 
     std::deque<RecordedPass> Passes;
     std::vector<GraphResourceInfo> Resources;
@@ -237,7 +305,7 @@ private:
 
 extern bool RGAllowPassOverlap;
 
-vk::ImageUsageFlags ImageAccessMaskToUsageFlags(vk::AccessFlags accessMask);
-vk::BufferUsageFlags BufferAccessMaskToUsageFlags(vk::AccessFlags accessMask);
+vk::ImageUsageFlags ImageAccessMaskToUsageFlags(VkAccessFlags accessMask);
+vk::BufferUsageFlags BufferAccessMaskToUsageFlags(VkAccessFlags accessMask);
 
 }  // namespace tekki::render_graph

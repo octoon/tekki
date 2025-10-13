@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
 #include "tekki/backend/vulkan/image.h"
-#include "render_graph.h"
+#include "tekki/render_graph/graph.h"
 
 namespace tekki::renderer::renderers {
 
@@ -19,7 +19,7 @@ public:
      * @return Processed image handle with depth of field applied
      */
     static std::shared_ptr<tekki::backend::vulkan::Image> Apply(
-        std::shared_ptr<RenderGraph> renderGraph,
+        std::shared_ptr<tekki::render_graph::RenderGraph> renderGraph,
         std::shared_ptr<tekki::backend::vulkan::Image> input,
         std::shared_ptr<tekki::backend::vulkan::Image> depth
     );

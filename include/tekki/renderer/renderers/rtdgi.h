@@ -6,15 +6,21 @@
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
 #include "tekki/backend/vulkan/image.h"
-#include "tekki/backend/vulkan/ray_tracing/ray_tracing_acceleration.h"
-#include "tekki/backend/vulkan/shader/shader_source.h"
-#include "tekki/renderer/render_graph/simple_render_pass.h"
-#include "tekki/renderer/renderers/ircache/ircache_render_state.h"
-#include "tekki/renderer/renderers/wrc/wrc_render_state.h"
+#include "tekki/backend/vulkan/ray_tracing.h"
+#include "tekki/render_graph/temporal.h"
+// TODO: Implement simple_render_pass.h when needed
+// #include "tekki/renderer/render_graph/simple_render_pass.h"
+#include "tekki/renderer/renderers/ircache_render_state.h"
+#include "tekki/renderer/renderers/wrc_render_state.h"
 #include "tekki/renderer/renderers/gbuffer_depth.h"
 #include "tekki/renderer/renderers/ping_pong_temporal_resource.h"
 
 namespace tekki::renderer::renderers {
+
+namespace rg = tekki::render_graph;
+using Image = tekki::backend::vulkan::Image;
+using TemporalRenderGraph = tekki::render_graph::TemporalRenderGraph;
+using RayTracingAcceleration = tekki::backend::vulkan::RayTracingAcceleration;
 
 struct RtdgiCandidates {
     std::shared_ptr<Image> CandidateRadianceTex;
@@ -46,7 +52,7 @@ private:
     PingPongTemporalResource Temporal2VarianceTex;
     PingPongTemporalResource TemporalHitNormalTex;
 
-    static ImageDesc TemporalTexDesc(const glm::uvec2& extent);
+    static Image::Desc TemporalTexDesc(const glm::uvec2& extent);
 
     std::shared_ptr<Image> Temporal(
         TemporalRenderGraph& rg,

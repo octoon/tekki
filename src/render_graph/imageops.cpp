@@ -1,4 +1,8 @@
 #include "tekki/render_graph/imageops.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/pass_builder.h"
+#include "tekki/backend/vulkan/device.h"
+#include "tekki/backend/vk_sync.h"
 #include <stdexcept>
 
 namespace tekki::render_graph {
@@ -8,28 +12,29 @@ namespace tekki::render_graph {
  */
 void ImageOps::ClearDepth(RenderGraph& rg, Handle<Image>& img) {
     try {
-        auto& pass = rg.AddPass("clear depth");
-        auto output_ref = pass.Write(img, AccessType::TransferWrite);
+        PassBuilder pass = rg.AddPass("clear depth");
+        auto output_ref = pass.Write(img, vk_sync::AccessType::TransferWrite);
 
-        pass.Render([output_ref](auto& api) {
-            auto& raw_device = api.Device().Raw;
+        pass.Render([output_ref](RenderPassApi& api) {
             auto cb = api.cb;
 
-            auto& image = api.Resources().Image(output_ref);
+            auto& image = api.Resources().image(output_ref);
 
-            raw_device.CmdClearDepthStencilImage(
-                cb.raw,
+            VkClearDepthStencilValue clearValue = {0.0f, 0};
+            VkImageSubresourceRange range = {};
+            range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            range.baseMipLevel = 0;
+            range.levelCount = 1;
+            range.baseArrayLayer = 0;
+            range.layerCount = 1;
+
+            vkCmdClearDepthStencilImage(
+                cb.Raw,
                 image.raw,
-                vk::ImageLayout::eTransferDstOptimal,
-                vk::ClearDepthStencilValue{
-                    .depth = 0.0f,
-                    .stencil = 0
-                },
-                vk::ImageSubresourceRange{
-                    .aspectMask = vk::ImageAspectFlagBits::eDepth,
-                    .levelCount = 1,
-                    .layerCount = 1
-                }
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                &clearValue,
+                1,
+                &range
             );
         });
     } catch (const std::exception& e) {
@@ -42,27 +47,34 @@ void ImageOps::ClearDepth(RenderGraph& rg, Handle<Image>& img) {
  */
 void ImageOps::ClearColor(RenderGraph& rg, Handle<Image>& img, const glm::vec4& clear_color) {
     try {
-        auto& pass = rg.AddPass("clear color");
-        auto output_ref = pass.Write(img, AccessType::TransferWrite);
+        PassBuilder pass = rg.AddPass("clear color");
+        auto output_ref = pass.Write(img, vk_sync::AccessType::TransferWrite);
 
-        pass.Render([output_ref, clear_color](auto& api) {
-            auto& raw_device = api.Device().Raw;
+        pass.Render([output_ref, clear_color](RenderPassApi& api) {
             auto cb = api.cb;
 
-            auto& image = api.Resources().Image(output_ref);
+            auto& image = api.Resources().image(output_ref);
 
-            raw_device.CmdClearColorImage(
-                cb.raw,
+            VkClearColorValue clearValue = {};
+            clearValue.float32[0] = clear_color.r;
+            clearValue.float32[1] = clear_color.g;
+            clearValue.float32[2] = clear_color.b;
+            clearValue.float32[3] = clear_color.a;
+
+            VkImageSubresourceRange range = {};
+            range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            range.baseMipLevel = 0;
+            range.levelCount = 1;
+            range.baseArrayLayer = 0;
+            range.layerCount = 1;
+
+            vkCmdClearColorImage(
+                cb.Raw,
                 image.raw,
-                vk::ImageLayout::eTransferDstOptimal,
-                vk::ClearColorValue{
-                    .float32 = {clear_color.r, clear_color.g, clear_color.b, clear_color.a}
-                },
-                vk::ImageSubresourceRange{
-                    .aspectMask = vk::ImageAspectFlagBits::eColor,
-                    .levelCount = 1,
-                    .layerCount = 1
-                }
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                &clearValue,
+                1,
+                &range
             );
         });
     } catch (const std::exception& e) {

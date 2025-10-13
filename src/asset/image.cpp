@@ -184,21 +184,21 @@ tekki::asset::GpuImage::Proto CreateGpuImage::ProcessRgba8(const RawRgba8Image& 
     // 4. Implement channel swizzling
 
     tekki::asset::GpuImage::Proto proto;
-    
+
     // Set format based on SRGB setting
     if (params_.srgb) {
-        proto.format = VK_FORMAT_R8G8B8A8_SRGB;
+        proto.Format = VK_FORMAT_R8G8B8A8_SRGB;
     } else {
-        proto.format = VK_FORMAT_R8G8B8A8_UNORM;
+        proto.Format = VK_FORMAT_R8G8B8A8_UNORM;
     }
-    
+
     // Set dimensions
-    proto.extent = {src.dimensions.x, src.dimensions.y, 1};
-    
+    proto.Extent = {src.dimensions.x, src.dimensions.y, 1};
+
     // For now, just pass through the data without processing
     // In a real implementation, you would implement the full processing pipeline
-    proto.mips.push_back(src.data);
-    
+    proto.Mips.push_back(src.data);
+
     return proto;
 }
 
@@ -209,34 +209,34 @@ tekki::asset::GpuImage::Proto CreateGpuImage::ProcessDds(void* ddsData) {
     auto* dds = static_cast<ddsfile::Dds*>(ddsData);
 
     tekki::asset::GpuImage::Proto proto;
-    
+
     // Map DDS format to Vulkan format
     switch (dds->get_dxgi_format()) {
         case ddsfile::DxgiFormat::BC1_UNorm_sRGB:
-            proto.format = VK_FORMAT_BC1_RGB_SRGB_BLOCK;
+            proto.Format = VK_FORMAT_BC1_RGB_SRGB_BLOCK;
             break;
         case ddsfile::DxgiFormat::BC3_UNorm:
-            proto.format = VK_FORMAT_BC3_UNORM_BLOCK;
+            proto.Format = VK_FORMAT_BC3_UNORM_BLOCK;
             break;
         case ddsfile::DxgiFormat::BC3_UNorm_sRGB:
-            proto.format = VK_FORMAT_BC3_SRGB_BLOCK;
+            proto.Format = VK_FORMAT_BC3_SRGB_BLOCK;
             break;
         case ddsfile::DxgiFormat::BC5_UNorm:
-            proto.format = VK_FORMAT_BC5_UNORM_BLOCK;
+            proto.Format = VK_FORMAT_BC5_UNORM_BLOCK;
             break;
         case ddsfile::DxgiFormat::BC5_SNorm:
-            proto.format = VK_FORMAT_BC5_SNORM_BLOCK;
+            proto.Format = VK_FORMAT_BC5_SNORM_BLOCK;
             break;
         default:
             throw std::runtime_error("Unsupported DDS format");
     }
-    
-    proto.extent = {dds->get_width(), dds->get_height(), dds->get_depth()};
-    
+
+    proto.Extent = {dds->get_width(), dds->get_height(), dds->get_depth()};
+
     // Extract mip data (simplified)
     const auto& ddsDataVec = dds->get_data(0);
-    proto.mips.push_back(ddsDataVec);
-    
+    proto.Mips.push_back(ddsDataVec);
+
     return proto;
 }
 

@@ -12,7 +12,7 @@
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/render_graph/lib.h"
-#include "rust_shaders_shared/frame_constants.h"
+#include "tekki/rust_shaders_shared/frame_constants.h"
 
 namespace tekki::renderer::renderers::old {
 

@@ -3,13 +3,26 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <functional>
 #include <fstream>
 #include <iostream>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <ctime>
 
 namespace tekki::renderer {
+
+// Safe cross-platform localtime helper
+inline std::tm SafeLocaltime(std::time_t time) {
+    std::tm tm_result{};
+#ifdef _WIN32
+    localtime_s(&tm_result, &time);
+#else
+    localtime_r(&time, &tm_result);
+#endif
+    return tm_result;
+}
 
 enum class LogLevel {
     Trace,
@@ -82,7 +95,7 @@ private:
     public:
         LogDispatch() = default;
 
-        LogDispatch& Format(std::function<std::string(LogLevel, const std::string&, const std::string&)> formatter) {
+        LogDispatch& Format([[maybe_unused]] std::function<std::string(LogLevel, const std::string&, const std::string&)> formatter) {
             // Format implementation would go here
             return *this;
         }
@@ -139,8 +152,9 @@ public:
         consoleOut.Format([colorsLine, colorsLevel](LogLevel level, const std::string& target, const std::string& message) -> std::string {
             auto now = std::chrono::system_clock::now();
             auto time = std::chrono::system_clock::to_time_t(now);
+            auto tm = SafeLocaltime(time);
             std::stringstream ss;
-            ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+            ss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
             
             std::string levelStr;
             switch (level) {
@@ -177,8 +191,9 @@ public:
         fileOut.Format([](LogLevel level, const std::string& target, const std::string& message) -> std::string {
             auto now = std::chrono::system_clock::now();
             auto time = std::chrono::system_clock::to_time_t(now);
+            auto tm = SafeLocaltime(time);
             std::stringstream ss;
-            ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+            ss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
             
             std::string levelStr;
             switch (level) {

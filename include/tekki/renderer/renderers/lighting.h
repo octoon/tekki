@@ -11,6 +11,12 @@
 
 namespace tekki::renderer::renderers {
 
+// Forward declarations
+namespace rg = tekki::render_graph;
+
+// Forward declare GbufferDepth
+struct GbufferDepth;
+
 class LightingRenderer {
 public:
     LightingRenderer();

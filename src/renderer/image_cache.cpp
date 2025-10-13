@@ -6,17 +6,19 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include "tekki/asset/image.h"
-#include "tekki/mesh/TexParams.h"
-#include "tekki/mesh/GpuImage.h"
+#include "tekki/asset/TexParams.h"
+#include "tekki/asset/GpuImage.h"
 #include "tekki/backend/lib.h"
+#include "tekki/backend/vulkan/image.h"
+#include "tekki/backend/vulkan/device.h"
 #include <stdexcept>
 #include <algorithm>
 
 namespace tekki::renderer {
 
 UploadGpuImage::UploadGpuImage(std::shared_ptr<tekki::asset::RawImage> image,
-                               tekki::mesh::TexParams params,
-                               std::shared_ptr<tekki::backend::Device> device)
+                               tekki::asset::TexParams params,
+                               std::shared_ptr<tekki::backend::vulkan::Device> device)
     : m_image(image), m_params(params), m_device(device) {}
 
 UploadGpuImage::UploadGpuImage(const UploadGpuImage& other)
@@ -31,7 +33,7 @@ UploadGpuImage& UploadGpuImage::operator=(const UploadGpuImage& other) {
     return *this;
 }
 
-std::shared_ptr<tekki::backend::Image> UploadGpuImage::Execute() {
+std::shared_ptr<tekki::backend::vulkan::Image> UploadGpuImage::Execute() {
     if (m_params.use_mips) {
         return CreateImageWithMipmaps();
     } else {
@@ -44,131 +46,117 @@ std::size_t UploadGpuImage::Hash::operator()(const UploadGpuImage& key) const {
     auto hash_combine = [&seed](const auto& v) {
         seed ^= std::hash<std::decay_t<decltype(v)>>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     };
-    
+
     if (key.m_image) {
-        hash_combine(key.m_image->GetWidth());
-        hash_combine(key.m_image->GetHeight());
-        hash_combine(key.m_image->GetFormat());
-        hash_combine(key.m_image->GetData().size());
+        const auto& rgba8 = key.m_image->GetRgba8Image();
+        hash_combine(rgba8.dimensions.x);
+        hash_combine(rgba8.dimensions.y);
+        hash_combine(rgba8.data.size());
     }
-    
-    hash_combine(key.m_params.gamma);
+
+    hash_combine(static_cast<int>(key.m_params.gamma));
     hash_combine(key.m_params.use_mips);
-    
+
     return seed;
 }
 
-std::shared_ptr<tekki::backend::Image> UploadGpuImage::CreateImageWithMipmaps() {
+std::shared_ptr<tekki::backend::vulkan::Image> UploadGpuImage::CreateImageWithMipmaps() {
     if (!m_image) {
         throw std::runtime_error("UploadGpuImage: null image");
     }
-    
+
     auto mipmaps = GenerateMipmaps(*m_image);
-    
+
     VkFormat format;
     switch (m_params.gamma) {
-        case tekki::mesh::TexGamma::Linear:
+        case tekki::asset::TexGamma::Linear:
             format = VK_FORMAT_R8G8B8A8_UNORM;
             break;
-        case tekki::mesh::TexGamma::Srgb:
+        case tekki::asset::TexGamma::Srgb:
             format = VK_FORMAT_R8G8B8A8_SRGB;
             break;
         default:
             throw std::runtime_error("UploadGpuImage: unsupported gamma format");
     }
-    
-    uint32_t width = m_image->GetWidth();
-    uint32_t height = m_image->GetHeight();
+
+    const auto& rgba8 = m_image->GetRgba8Image();
+    uint32_t width = rgba8.dimensions.x;
+    uint32_t height = rgba8.dimensions.y;
     uint32_t mip_levels = static_cast<uint32_t>(mipmaps.size() + 1);
-    
-    std::vector<tekki::backend::ImageSubResourceData> initial_data;
-    
-    auto& src_data = m_image->GetData();
-    initial_data.emplace_back(tekki::backend::ImageSubResourceData{
-        .data = src_data.data(),
-        .row_pitch = width * 4,
-        .slice_pitch = 0
+
+    std::vector<tekki::backend::vulkan::ImageSubResourceData> initial_data;
+
+    initial_data.emplace_back(tekki::backend::vulkan::ImageSubResourceData{
+        rgba8.data,
+        width * 4,
+        0
     });
-    
+
     for (uint32_t level = 1; level < mip_levels; level++) {
         auto& mip_data = mipmaps[level - 1];
         uint32_t mip_width = std::max(width >> level, 1u);
-        initial_data.emplace_back(tekki::backend::ImageSubResourceData{
-            .data = mip_data.data(),
-            .row_pitch = mip_width * 4,
-            .slice_pitch = 0
+        initial_data.emplace_back(tekki::backend::vulkan::ImageSubResourceData{
+            mip_data,
+            mip_width * 4,
+            0
         });
     }
-    
-    tekki::backend::ImageDesc desc;
-    desc.format = format;
-    desc.width = width;
-    desc.height = height;
-    desc.depth = 1;
-    desc.mip_levels = mip_levels;
-    desc.array_layers = 1;
-    desc.samples = VK_SAMPLE_COUNT_1_BIT;
-    desc.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-    desc.flags = 0;
-    
+
+    tekki::backend::vulkan::ImageDesc desc = tekki::backend::vulkan::ImageDesc::New2d(format, glm::u32vec2(width, height))
+        .WithMipLevels(static_cast<uint16_t>(mip_levels))
+        .WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+
     return m_device->CreateImage(desc, initial_data);
 }
 
-std::shared_ptr<tekki::backend::Image> UploadGpuImage::CreateImageWithoutMipmaps() {
+std::shared_ptr<tekki::backend::vulkan::Image> UploadGpuImage::CreateImageWithoutMipmaps() {
     if (!m_image) {
         throw std::runtime_error("UploadGpuImage: null image");
     }
-    
+
     VkFormat format;
     switch (m_params.gamma) {
-        case tekki::mesh::TexGamma::Linear:
+        case tekki::asset::TexGamma::Linear:
             format = VK_FORMAT_R8G8B8A8_UNORM;
             break;
-        case tekki::mesh::TexGamma::Srgb:
+        case tekki::asset::TexGamma::Srgb:
             format = VK_FORMAT_R8G8B8A8_SRGB;
             break;
         default:
             throw std::runtime_error("UploadGpuImage: unsupported gamma format");
     }
-    
-    uint32_t width = m_image->GetWidth();
-    uint32_t height = m_image->GetHeight();
-    
-    auto& src_data = m_image->GetData();
-    std::vector<tekki::backend::ImageSubResourceData> initial_data = {
-        tekki::backend::ImageSubResourceData{
-            .data = src_data.data(),
-            .row_pitch = width * 4,
-            .slice_pitch = 0
+
+    const auto& rgba8 = m_image->GetRgba8Image();
+    uint32_t width = rgba8.dimensions.x;
+    uint32_t height = rgba8.dimensions.y;
+
+    std::vector<tekki::backend::vulkan::ImageSubResourceData> initial_data = {
+        tekki::backend::vulkan::ImageSubResourceData{
+            rgba8.data,
+            width * 4,
+            0
         }
     };
-    
-    tekki::backend::ImageDesc desc;
-    desc.format = format;
-    desc.width = width;
-    desc.height = height;
-    desc.depth = 1;
-    desc.mip_levels = 1;
-    desc.array_layers = 1;
-    desc.samples = VK_SAMPLE_COUNT_1_BIT;
-    desc.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-    desc.flags = 0;
-    
+
+    tekki::backend::vulkan::ImageDesc desc = tekki::backend::vulkan::ImageDesc::New2d(format, glm::u32vec2(width, height))
+        .WithMipLevels(1)
+        .WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+
     return m_device->CreateImage(desc, initial_data);
 }
 
 std::vector<std::vector<uint8_t>> UploadGpuImage::GenerateMipmaps(const tekki::asset::RawImage& src) {
     std::vector<std::vector<uint8_t>> mipmaps;
-    
-    uint32_t width = src.GetWidth();
-    uint32_t height = src.GetHeight();
-    auto& src_data = src.GetData();
-    
-    if (src_data.size() != width * height * 4) {
+
+    const auto& rgba8 = src.GetRgba8Image();
+    uint32_t width = rgba8.dimensions.x;
+    uint32_t height = rgba8.dimensions.y;
+
+    if (rgba8.data.size() != width * height * 4) {
         throw std::runtime_error("UploadGpuImage: invalid image data size");
     }
-    
-    std::vector<uint8_t> current_level(src_data.begin(), src_data.end());
+
+    std::vector<uint8_t> current_level(rgba8.data.begin(), rgba8.data.end());
     uint32_t current_width = width;
     uint32_t current_height = height;
     

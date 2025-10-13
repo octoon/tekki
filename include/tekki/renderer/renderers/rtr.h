@@ -9,7 +9,7 @@
 #include "tekki/backend/vulkan/buffer.h"
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/ray_tracing.h"
-#include "tekki/renderer/render_graph.h"
+#include "tekki/render_graph/graph.h"
 #include "tekki/renderer/renderers/ircache.h"
 #include "tekki/renderer/renderers/rtdgi.h"
 #include "tekki/renderer/renderers/wrc.h"

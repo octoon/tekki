@@ -9,7 +9,7 @@
 #include "ngx_dlss.h"
 #include "tekki/backend/render_backend.h"
 #include "tekki/backend/vulkan/image.h"
-#include "tekki/render_graph/render_graph.h"
+#include "tekki/render_graph/RenderGraph.h"
 
 namespace tekki::renderer::renderers {
 

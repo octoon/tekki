@@ -7,24 +7,24 @@
 #include <stdexcept>
 #include "tekki/core/result.h"
 #include "tekki/backend/vk_sync.h"
-#include "tekki/render_graph/RenderGraph.h"
-#include "tekki/render_graph/Resource.h"
-#include "tekki/render_graph/Buffer.h"
-#include "tekki/render_graph/Image.h"
+#include "tekki/render_graph/types.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/pass_builder.h"
 
 namespace tekki::render_graph {
 
-template<typename ResType>
-class ReadOnlyHandle {
-public:
-    ReadOnlyHandle(Handle<ResType> handle) : handle_(std::move(handle)) {}
-    
-    const Handle<ResType>& operator*() const { return handle_; }
-    const Handle<ResType>* operator->() const { return &handle_; }
-    
-private:
-    Handle<ResType> handle_;
-};
+// Forward declarations
+class RenderGraph;
+class RetiredRenderGraph;
+class Image;
+class Buffer;
+template<typename T> class Handle;
+class ExportableGraphResource;
+struct ImageDesc;
+struct BufferDesc;
+class PassBuilder;
+// Device is already defined in types.h
+
 
 class TemporalResourceKey {
 public:
@@ -81,19 +81,19 @@ enum class ExportedResourceHandleType {
 
 class ExportedResourceHandle {
 public:
-    ExportedResourceHandle(ExportedHandle<Image> handle) 
+    ExportedResourceHandle(ExportedHandle<Image> handle)
         : type_(ExportedResourceHandleType::Image), image_handle_(handle) {}
-    ExportedResourceHandle(ExportedHandle<Buffer> handle) 
+    ExportedResourceHandle(ExportedHandle<Buffer> handle)
         : type_(ExportedResourceHandleType::Buffer), buffer_handle_(handle) {}
-    
+
     ExportedResourceHandleType GetType() const { return type_; }
     ExportedHandle<Image> GetImageHandle() const { return image_handle_; }
     ExportedHandle<Buffer> GetBufferHandle() const { return buffer_handle_; }
 
 private:
     ExportedResourceHandleType type_;
-    ExportedHandle<Image> image_handle_;
-    ExportedHandle<Buffer> buffer_handle_;
+    ExportedHandle<Image> image_handle_{};
+    ExportedHandle<Buffer> buffer_handle_{};
 };
 
 enum class TemporalResourceStateType {
@@ -106,25 +106,31 @@ class TemporalResourceState {
 public:
     struct InertState {
         TemporalResource resource;
-        AccessType access_type;
+        vk_sync::AccessType access_type;
+        InertState() : resource(std::shared_ptr<Image>()), access_type(vk_sync::AccessType::None) {}
+        InertState(TemporalResource res, vk_sync::AccessType access) : resource(std::move(res)), access_type(access) {}
     };
-    
+
     struct ImportedState {
         TemporalResource resource;
-        ExportableGraphResource handle;
+        std::shared_ptr<ExportableGraphResource> handle;
+        ImportedState() : resource(std::shared_ptr<Image>()), handle(nullptr) {}
+        ImportedState(TemporalResource res, std::shared_ptr<ExportableGraphResource> h) : resource(std::move(res)), handle(std::move(h)) {}
     };
-    
+
     struct ExportedState {
         TemporalResource resource;
         ExportedResourceHandle handle;
+        ExportedState() : resource(std::shared_ptr<Image>()), handle(ExportedHandle<Image>{}) {}
+        ExportedState(TemporalResource res, ExportedResourceHandle h) : resource(std::move(res)), handle(std::move(h)) {}
     };
     
-    TemporalResourceState(InertState state) 
-        : type_(TemporalResourceStateType::Inert), inert_state_(std::move(state)) {}
-    TemporalResourceState(ImportedState state) 
-        : type_(TemporalResourceStateType::Imported), imported_state_(std::move(state)) {}
-    TemporalResourceState(ExportedState state) 
-        : type_(TemporalResourceStateType::Exported), exported_state_(std::move(state)) {}
+    TemporalResourceState(InertState state)
+        : type_(TemporalResourceStateType::Inert), inert_state_(std::move(state)), imported_state_(), exported_state_() {}
+    TemporalResourceState(ImportedState state)
+        : type_(TemporalResourceStateType::Imported), inert_state_(), imported_state_(std::move(state)), exported_state_() {}
+    TemporalResourceState(ExportedState state)
+        : type_(TemporalResourceStateType::Exported), inert_state_(), imported_state_(), exported_state_(std::move(state)) {}
     
     TemporalResourceStateType GetType() const { return type_; }
     const InertState& GetInertState() const { return inert_state_; }
@@ -196,19 +202,42 @@ private:
 class TemporalRenderGraph {
 public:
     TemporalRenderGraph(TemporalRenderGraphState state, std::shared_ptr<Device> device);
-    
-    RenderGraph& GetRenderGraph() { return rg_; }
-    const RenderGraph& GetRenderGraph() const { return rg_; }
-    
+
+    RenderGraph* GetRenderGraph() { return rg_.get(); }
+    const RenderGraph* GetRenderGraph() const { return rg_.get(); }
+
     Device& GetDevice() const { return *device_; }
-    
+
     Handle<Image> GetOrCreateTemporalImage(const TemporalResourceKey& key, const ImageDesc& desc);
     Handle<Buffer> GetOrCreateTemporalBuffer(const TemporalResourceKey& key, const BufferDesc& desc);
-    
-    std::pair<RenderGraph, ExportedTemporalRenderGraphState> ExportTemporal();
+
+    // Generic template method that dispatches to the appropriate typed method
+    template<typename Desc>
+    Handle<typename Desc::Resource> GetOrCreateTemporal(const TemporalResourceKey& key, const Desc& desc) {
+        if constexpr (std::is_same_v<Desc, ImageDesc>) {
+            return GetOrCreateTemporalImage(key, desc);
+        } else if constexpr (std::is_same_v<Desc, BufferDesc>) {
+            return GetOrCreateTemporalBuffer(key, desc);
+        } else {
+            static_assert(std::is_same_v<Desc, ImageDesc> || std::is_same_v<Desc, BufferDesc>,
+                         "GetOrCreateTemporal only supports ImageDesc or BufferDesc");
+        }
+    }
+
+    std::pair<std::unique_ptr<RenderGraph>, ExportedTemporalRenderGraphState> ExportTemporal();
+
+    // Delegate methods to internal RenderGraph
+    PassBuilder AddPass(const std::string& name) {
+        return rg_->AddPass(name);
+    }
+
+    template<typename Desc>
+    Handle<typename Desc::Resource> Create(const Desc& desc) {
+        return rg_->Create(desc);
+    }
 
 private:
-    RenderGraph rg_;
+    std::unique_ptr<RenderGraph> rg_;
     std::shared_ptr<Device> device_;
     TemporalRenderGraphState temporal_state_;
 };

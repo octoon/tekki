@@ -11,8 +11,9 @@
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/render_graph/lib.h"
-#include "tekki/renderers/prefix_scan/inclusive_prefix_scan_u32_1m.h"
-#include "tekki/renderers/wrc/wrc_render_state.h"
+#include "tekki/renderer/renderers/prefix_scan.h"
+#include "tekki/renderer/renderers/wrc_render_state.h"
+#include "tekki/rust_shaders_shared/frame_constants.h"
 
 namespace tekki::renderer::renderers {
 
@@ -46,9 +47,9 @@ struct IrcacheIrradiancePendingSummation {
 class IrcacheRenderer {
 public:
     IrcacheRenderer(std::shared_ptr<tekki::backend::vulkan::Device> device);
-    
+
     void UpdateEyePosition(const glm::vec3& eyePosition);
-    std::array<rust_shaders_shared::frame_constants::IrcacheCascadeConstants, 8> Constants() const;
+    std::array<rust_shaders_shared::IrcacheCascadeConstants, 8> Constants() const;
     glm::vec3 GridCenter() const;
     IrcacheRenderState Prepare(tekki::render_graph::TemporalRenderGraph& rg);
 

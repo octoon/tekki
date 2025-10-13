@@ -10,8 +10,8 @@
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/render_graph/lib.h"
-#include "tekki/renderers/prefix_scan/inclusive_prefix_scan_u32_1m.h"
-#include "tekki/renderers/wrc/wrc_render_state.h"
+#include "tekki/renderer/renderers/prefix_scan.h"
+#include "tekki/renderer/renderers/wrc_render_state.h"
 
 namespace tekki::renderer::renderers {
 
@@ -24,20 +24,10 @@ IrcacheRenderer::IrcacheRenderer(std::shared_ptr<tekki::backend::vulkan::Device>
     , Parity(0)
     , EnableScroll(true)
 {
-    try {
-        std::vector<tekki::backend::vulkan::RenderPassAttachmentDesc> colorAttachments = {
-            tekki::backend::vulkan::RenderPassAttachmentDesc(VK_FORMAT_R32G32B32A32_SFLOAT)
-        };
-        tekki::backend::vulkan::RenderPassAttachmentDesc depthAttachment(VK_FORMAT_D32_SFLOAT);
-        
-        tekki::backend::vulkan::RenderPassDesc renderPassDesc;
-        renderPassDesc.color_attachments = colorAttachments;
-        renderPassDesc.depth_attachment = std::make_optional(depthAttachment);
-        
-        DebugRenderPass = tekki::backend::vulkan::create_render_pass(device, renderPassDesc);
-    } catch (const std::exception& e) {
-        throw std::runtime_error("Failed to create IrcacheRenderer: " + std::string(e.what()));
-    }
+    (void)device;  // Will be used when render pass creation is properly implemented
+    // TODO: Implement render pass creation when needed
+    // For now, just initialize to nullptr
+    DebugRenderPass = nullptr;
 }
 
 void IrcacheRenderer::UpdateEyePosition(const glm::vec3& eyePosition)
@@ -58,21 +48,20 @@ void IrcacheRenderer::UpdateEyePosition(const glm::vec3& eyePosition)
     }
 }
 
-std::array<rust_shaders_shared::frame_constants::IrcacheCascadeConstants, 8> IrcacheRenderer::Constants() const
+std::array<rust_shaders_shared::IrcacheCascadeConstants, 8> IrcacheRenderer::Constants() const
 {
-    std::array<rust_shaders_shared::frame_constants::IrcacheCascadeConstants, 8> constants;
-    
+    std::array<rust_shaders_shared::IrcacheCascadeConstants, 8> constants;
+
     for (size_t cascade = 0; cascade < 8; ++cascade) {
         glm::ivec3 curScroll = CurScroll[cascade];
         glm::ivec3 prevScroll = PrevScroll[cascade];
         glm::ivec3 scrollAmount = curScroll - prevScroll;
 
-        constants[cascade] = rust_shaders_shared::frame_constants::IrcacheCascadeConstants{
-            glm::ivec4(curScroll.x, curScroll.y, curScroll.z, 0),
-            glm::ivec4(scrollAmount.x, scrollAmount.y, scrollAmount.z, 0)
-        };
+        rust_shaders_shared::IrcacheCascadeConstants& c = constants[cascade];
+        c.origin = glm::ivec4(curScroll.x, curScroll.y, curScroll.z, 0);
+        c.voxels_scrolled_this_frame = glm::ivec4(scrollAmount.x, scrollAmount.y, scrollAmount.z, 0);
     }
-    
+
     return constants;
 }
 
@@ -87,12 +76,8 @@ IrcacheRenderState IrcacheRenderer::Prepare(tekki::render_graph::TemporalRenderG
     static_assert(INDIRECTION_BUF_ELEM_COUNT >= MAX_ENTRIES, "INDIRECTION_BUF_ELEM_COUNT must be >= MAX_ENTRIES");
 
     auto temporal_storage_buffer = [&](const std::string& name, size_t size) -> tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> {
-        tekki::backend::vulkan::BufferDesc desc;
-        desc.size = size;
-        desc.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        desc.memory_usage = tekki::backend::vulkan::MemoryUsage::GPU_ONLY;
-        
-        return rg.GetOrCreateTemporal(name, desc);
+        auto desc = tekki::backend::vulkan::BufferDesc::NewGpuOnly(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        return rg.GetOrCreateTemporal(rg::TemporalResourceKey(name), desc);
     };
 
     IrcacheRenderState state{

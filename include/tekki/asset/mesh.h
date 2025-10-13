@@ -11,26 +11,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <tekki/backend/bytes.h>
 #include <tekki/core/result.h>
+#include <tekki/asset/TexParams.h>
 
 namespace tekki::asset {
-
-enum class TexGamma {
-    Linear,
-    Srgb
-};
-
-enum class TexCompressionMode {
-    None,
-    Rgba,
-    Rg
-};
-
-struct TexParams {
-    TexGamma Gamma;
-    bool UseMips;
-    TexCompressionMode Compression;
-    std::optional<std::array<size_t, 4>> ChannelSwizzle;
-};
 
 class MeshMaterialMap {
 public:
@@ -177,15 +160,15 @@ struct AssetRef {
 
 namespace GpuImage {
     struct Proto {
-        // kajiya_backend::ash::vk::Format Format; // TODO: Replace with actual format type
+        uint32_t Format; // VkFormat
         std::array<uint32_t, 3> Extent;
         std::vector<std::vector<uint8_t>> Mips;
-        
+
         void FlattenInto(std::vector<uint8_t>& writer);
     };
 
     struct Flat {
-        // kajiya_backend::ash::vk::Format Format;
+        uint32_t Format; // VkFormat
         std::array<uint32_t, 3> Extent;
         FlatVec<FlatVec<uint8_t>> Mips;
     };

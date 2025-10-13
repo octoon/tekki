@@ -256,6 +256,7 @@ target_link_libraries(tekki-simple
 # Asset pipeline library
 add_library(tekki-asset-pipe STATIC
     kajiya_asset_pipe/lib.cpp
+    kajiya_asset/mesh.cpp
 )
 
 target_include_directories(tekki-asset-pipe
@@ -291,58 +292,6 @@ if(TEKKI_WITH_DLSS)
             TEKKI_WITH_DLSS
     )
 endif()
-
-# Rust shader builder utility
-add_library(tekki-shader-builder STATIC
-    rust_shader_builder/main.cpp
-)
-
-target_include_directories(tekki-shader-builder
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
-
-target_link_libraries(tekki-shader-builder
-    PUBLIC
-        tekki-backend
-)
-
-# View library
-add_library(tekki-view-lib STATIC
-    view/keymap.cpp
-    view/misc.cpp
-    view/opt.cpp
-)
-
-target_include_directories(tekki-view-lib
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
-
-target_link_libraries(tekki-view-lib
-    PUBLIC
-        tekki-backend
-        tekki-simple
-        CLI11::CLI11
-)
-
-# Viewer application
-add_executable(tekki-view
-    view/main.cpp
-)
-
-target_link_libraries(tekki-view
-    PRIVATE
-        tekki-view-lib
-        tekki-renderer
-        tekki-simple
-        tekki-imgui
-        imgui::imgui
-        glfw
-        CLI11::CLI11
-)
 
 # Link DLSS if enabled
 if(TEKKI_WITH_DLSS)

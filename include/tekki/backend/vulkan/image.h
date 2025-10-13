@@ -118,14 +118,19 @@ struct ImageViewDesc {
 
 class Image {
 public:
+    using Desc = ImageDesc;  // Type alias for Handle<Image> template
+
     VkImage Raw;
-    ImageDesc Desc;
+    ImageDesc desc;
 
     Image(VkImage raw, const ImageDesc& desc);
     ~Image();
 
     VkImageView GetView(Device& device, const ImageViewDesc& desc);
     VkImageViewCreateInfo GetViewDesc(const ImageViewDesc& desc) const;
+
+    // Accessor for desc (matching Rust API)
+    const ImageDesc& GetDesc() const { return desc; }
 
 private:
     std::unordered_map<ImageViewDesc, VkImageView, ImageViewDesc::Hash> views;

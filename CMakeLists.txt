@@ -62,6 +62,8 @@ target_compile_definitions(tekki_compile_options INTERFACE
 # Subdirectories
 add_subdirectory(third_party)
 add_subdirectory(src)
+add_subdirectory(samples)
+add_subdirectory(tools)
 
 # Tests subdirectory (optional)
 if(TEKKI_BUILD_TESTS)
@@ -69,7 +71,7 @@ if(TEKKI_BUILD_TESTS)
 endif()
 
 # Installation
-install(TARGETS tekki-view
+install(TARGETS tekki-view tekki-hello tekki-shader-builder tekki-asset-baker
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

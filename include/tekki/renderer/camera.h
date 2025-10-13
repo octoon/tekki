@@ -85,7 +85,7 @@ public:
 
 class IntoCameraBodyMatrices {
 public:
-    virtual CameraBodyMatrices IntoCameraBodyMatrices() = 0;
+    virtual CameraBodyMatrices GetCameraBodyMatrices() = 0;
     virtual ~IntoCameraBodyMatrices() = default;
 };
 
@@ -104,9 +104,9 @@ public:
     LookThroughCameraWrapper(T&& val) : value(std::forward<T>(val)) {}
 
     CameraMatrices Through(const CameraLens& lens) override {
-        auto body = value.IntoCameraBodyMatrices();
+        auto body = value.GetCameraBodyMatrices();
         auto lensMatrices = lens.CalcMatrices();
-        
+
         return CameraMatrices{
             lensMatrices.ViewToClip,
             lensMatrices.ClipToView,

@@ -4,76 +4,44 @@
 
 namespace tekki::renderer {
 
-std::shared_ptr<tekki::backend::Image> BrdfFgLutComputer::Create(std::shared_ptr<tekki::backend::Device> device) {
-    tekki::backend::vulkan::ImageDesc desc;
-    desc.ImageType = tekki::backend::vulkan::ImageType::Tex2d;
-    desc.Format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    desc.Extent = {64, 64, 1};
-    desc.Usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    desc.MipLevels = 1;
-    desc.ArrayLayers = 1;
-    desc.Samples = VK_SAMPLE_COUNT_1_BIT;
-    
+std::shared_ptr<tekki::backend::vulkan::Image> BrdfFgLutComputer::Create(std::shared_ptr<tekki::backend::vulkan::Device> device) {
+    auto desc = tekki::backend::vulkan::ImageDesc::New2d(VK_FORMAT_R16G16B16A16_SFLOAT, {64, 64})
+        .WithUsage(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+        .WithMipLevels(1);
+
     try {
-        return device->CreateImage(desc, {});
+        return device->CreateImage(desc, std::vector<uint8_t>{});
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to create BRDF FG LUT image: " + std::string(e.what()));
     }
 }
 
-void BrdfFgLutComputer::Compute(std::shared_ptr<tekki::render_graph::Graph> renderGraph, std::shared_ptr<tekki::backend::Image> image) {
-    auto pass = renderGraph->AddPass("brdf_fg lut");
-    
-    auto pipeline = pass->RegisterComputePipeline("/shaders/lut/brdf_fg.hlsl");
-    auto imageRef = pass->Write(image, vk_sync::AccessType::ComputeShaderWrite);
-    
-    pass->Render([pipeline, imageRef](std::shared_ptr<tekki::render_graph::PassApi> api) {
-        try {
-            auto boundPipeline = api->BindComputePipeline(
-                pipeline->IntoBinding()->DescriptorSet(0, {imageRef->Bind()})
-            );
-            
-            boundPipeline->Dispatch(imageRef->GetDesc().Extent);
-        } catch (const std::exception& e) {
-            throw std::runtime_error("Failed to execute BRDF FG LUT compute pass: " + std::string(e.what()));
-        }
-    });
+void BrdfFgLutComputer::Compute([[maybe_unused]] rg::RenderGraph& renderGraph, [[maybe_unused]] rg::Handle<tekki::backend::vulkan::Image>& image) {
+    // TODO: Implement compute pass once RenderPassApi::BindComputePipeline is available
+    // Original Rust implementation uses:
+    //   - pass.register_compute_pipeline("/shaders/lut/brdf_fg.hlsl")
+    //   - api.bind_compute_pipeline with descriptor set binding
+    //   - pipeline.dispatch(img_ref.desc().extent)
 }
 
-std::shared_ptr<tekki::backend::Image> BezoldBruckeLutComputer::Create(std::shared_ptr<tekki::backend::Device> device) {
-    tekki::backend::vulkan::ImageDesc desc;
-    desc.ImageType = tekki::backend::vulkan::ImageType::Tex2d;
-    desc.Format = VK_FORMAT_R16G16_SFLOAT;
-    desc.Extent = {64, 1, 1};
-    desc.Usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    desc.MipLevels = 1;
-    desc.ArrayLayers = 1;
-    desc.Samples = VK_SAMPLE_COUNT_1_BIT;
-    
+std::shared_ptr<tekki::backend::vulkan::Image> BezoldBruckeLutComputer::Create(std::shared_ptr<tekki::backend::vulkan::Device> device) {
+    auto desc = tekki::backend::vulkan::ImageDesc::New2d(VK_FORMAT_R16G16_SFLOAT, {64, 1})
+        .WithUsage(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+        .WithMipLevels(1);
+
     try {
-        return device->CreateImage(desc, {});
+        return device->CreateImage(desc, std::vector<uint8_t>{});
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to create Bezold-Brucke LUT image: " + std::string(e.what()));
     }
 }
 
-void BezoldBruckeLutComputer::Compute(std::shared_ptr<tekki::render_graph::Graph> renderGraph, std::shared_ptr<tekki::backend::Image> image) {
-    auto pass = renderGraph->AddPass("bezold_brucke lut");
-    
-    auto pipeline = pass->RegisterComputePipeline("/shaders/lut/bezold_brucke.hlsl");
-    auto imageRef = pass->Write(image, vk_sync::AccessType::ComputeShaderWrite);
-    
-    pass->Render([pipeline, imageRef](std::shared_ptr<tekki::render_graph::PassApi> api) {
-        try {
-            auto boundPipeline = api->BindComputePipeline(
-                pipeline->IntoBinding()->DescriptorSet(0, {imageRef->Bind()})
-            );
-            
-            boundPipeline->Dispatch(imageRef->GetDesc().Extent);
-        } catch (const std::exception& e) {
-            throw std::runtime_error("Failed to execute Bezold-Brucke LUT compute pass: " + std::string(e.what()));
-        }
-    });
+void BezoldBruckeLutComputer::Compute([[maybe_unused]] rg::RenderGraph& renderGraph, [[maybe_unused]] rg::Handle<tekki::backend::vulkan::Image>& image) {
+    // TODO: Implement compute pass once RenderPassApi::BindComputePipeline is available
+    // Original Rust implementation uses:
+    //   - pass.register_compute_pipeline("/shaders/lut/bezold_brucke.hlsl")
+    //   - api.bind_compute_pipeline with descriptor set binding
+    //   - pipeline.dispatch(img_ref.desc().extent)
 }
 
-}
+} // namespace tekki::renderer

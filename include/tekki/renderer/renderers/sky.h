@@ -6,9 +6,11 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include "tekki/render_graph/lib.h"
-#include "tekki/backend/vulkan/image.h"
+#include "tekki/render_graph/Image.h"
 
 namespace tekki::renderer::renderers {
+
+namespace rg = tekki::render_graph;
 
 class SkyRenderer {
 public:
@@ -17,7 +19,7 @@ public:
      * @param rg The render graph
      * @return Handle to the created sky texture
      */
-    static tekki::render_graph::Handle<tekki::backend::vulkan::Image> RenderSkyCube(tekki::render_graph::RenderGraph& rg);
+    static rg::Handle<rg::Image> RenderSkyCube(rg::RenderGraph& rg);
 
     /**
      * Convolve cube map
@@ -25,9 +27,9 @@ public:
      * @param input Input cube map texture
      * @return Handle to the convolved sky texture
      */
-    static tekki::render_graph::Handle<tekki::backend::vulkan::Image> ConvolveCube(
-        tekki::render_graph::RenderGraph& rg,
-        const tekki::render_graph::Handle<tekki::backend::vulkan::Image>& input
+    static rg::Handle<rg::Image> ConvolveCube(
+        rg::RenderGraph& rg,
+        const rg::Handle<rg::Image>& input
     );
 };
 

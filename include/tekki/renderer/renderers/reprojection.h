@@ -6,20 +6,18 @@
 #include <vulkan/vulkan.h>
 #include "tekki/render_graph/lib.h"
 #include "tekki/backend/vulkan/image.h"
+#include "tekki/renderer/renderers/gbuffer_depth.h"
 
 namespace tekki::renderer::renderers {
 
-struct GbufferDepth {
-    std::shared_ptr<tekki::backend::vulkan::Image> Depth;
-    std::shared_ptr<tekki::backend::vulkan::Image> GeometricNormal;
-};
+namespace rg = tekki::render_graph;
 
 class Reprojection {
 public:
-    static std::shared_ptr<tekki::backend::vulkan::Image> CalculateReprojectionMap(
+    static rg::Handle<rg::Image> CalculateReprojectionMap(
         tekki::render_graph::TemporalRenderGraph& renderGraph,
         const GbufferDepth& gbufferDepth,
-        const std::shared_ptr<tekki::backend::vulkan::Image>& velocityImage
+        rg::Handle<rg::Image> velocityImage
     );
 };
 

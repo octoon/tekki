@@ -26,12 +26,14 @@ class WorldRendererMmapAdapter;
 class BindlessDescriptorSet;
 class BufferBuilder;
 
-// External dependencies
-namespace asset = kajiya_asset;
-namespace backend = kajiya_backend;
-namespace rg = kajiya_rg;
+// External dependencies (C++ versions)
+// Note: These were originally Rust crate references, now point to C++ equivalents
+// namespace asset = tekki::asset;
+// namespace backend = tekki::backend;
+// namespace rg = tekki::render_graph;
 
 // Import render overrides from shared shaders
-using rust_shaders_shared::render_overrides::*;
+// TODO: This needs to be updated when rust_shaders_shared is fully ported
+// using rust_shaders_shared::render_overrides::*;
 
 } // namespace tekki::renderer

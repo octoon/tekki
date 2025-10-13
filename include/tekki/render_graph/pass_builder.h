@@ -35,14 +35,14 @@ concept GpuViewType = true; // Placeholder concept
 
 class PassBuilder {
 public:
-    PassBuilder(RenderGraph& rg, size_t passIdx);
+    PassBuilder(RenderGraph& rg, const std::string& name, size_t passIdx);
     ~PassBuilder();
 
     template<typename Desc>
     auto Create(const Desc& desc) -> Handle<typename Desc::Resource>
         requires ResourceDesc<Desc> && std::same_as<typename Desc::Resource::Desc, Desc>
     {
-        return rg.Create(desc);
+        return rg_.Create(desc);
     }
 
     template<typename Res, typename ViewType>
@@ -57,21 +57,20 @@ public:
         // don't overlap, and that multiple writes don't happen to the same resource.
         // The borrow checker will at least check that resources don't alias each other,
         // but for the access in render passes, we resort to a runtime check.
-        if (std::any_of(pass.Write.begin(), pass.Write.end(), [&](const auto& item) { return item.Handle == handle.Raw; })) {
+        if (std::any_of(pass.Write.begin(), pass.Write.end(), [&](const auto& item) { return item.Handle == handle.raw; })) {
             throw std::runtime_error("Trying to write twice to the same resource within one render pass");
-        } else if (std::any_of(pass.Read.begin(), pass.Read.end(), [&](const auto& item) { return item.Handle == handle.Raw; })) {
+        } else if (std::any_of(pass.Read.begin(), pass.Read.end(), [&](const auto& item) { return item.Handle == handle.raw; })) {
             throw std::runtime_error("Trying to read and write to the same resource within one render pass");
         }*/
 
         pass.Write.push_back(PassResourceRef{
-            .Handle = handle.Raw,
+            .Handle = handle.raw,
             .Access = PassResourceAccessType(accessType, syncType)
         });
 
         return Ref<Res, ViewType>{
-            .Desc = handle.Desc,
-            .Handle = handle.Raw.NextVersion(),
-            .Marker = {}
+            .handle = handle.raw.next_version(),
+            .desc = handle.desc
         };
     }
 
@@ -189,19 +188,18 @@ public:
 
         // CHECK DISABLED: multiple writes or mixing of reads and writes is valid with non-overlapping views
         /*// Runtime "borrow" check; see info in `Write` above.
-        if (std::any_of(pass.Write.begin(), pass.Write.end(), [&](const auto& item) { return item.Handle == handle.Raw; })) {
+        if (std::any_of(pass.Write.begin(), pass.Write.end(), [&](const auto& item) { return item.Handle == handle.raw; })) {
             throw std::runtime_error("Trying to read and write to the same resource within one render pass");
         }*/
 
         pass.Read.push_back(PassResourceRef{
-            .Handle = handle.Raw,
+            .Handle = handle.raw,
             .Access = PassResourceAccessType(accessType, PassResourceAccessSyncType::SkipSyncIfSameAccessType)
         });
 
         return Ref<Res, GpuSrv>{
-            .Desc = handle.Desc,
-            .Handle = handle.Raw,
-            .Marker = {}
+            .handle = handle.raw,
+            .desc = handle.desc
         };
     }
 
@@ -220,14 +218,13 @@ public:
         auto& pass = *pass_;
 
         pass.Read.push_back(PassResourceRef{
-            .Handle = handle.Raw,
+            .Handle = handle.raw,
             .Access = PassResourceAccessType(accessType, PassResourceAccessSyncType::SkipSyncIfSameAccessType)
         });
 
         return Ref<Res, GpuRt>{
-            .Desc = handle.Desc,
-            .Handle = handle.Raw,
-            .Marker = {}
+            .handle = handle.raw,
+            .desc = handle.desc
         };
     }
 

@@ -1,4 +1,5 @@
 #include "tekki/renderer/world_renderer.h"
+#include "tekki/renderer/image_lut.h"
 #include <memory>
 #include <vector>
 #include <unordered_map>
@@ -55,45 +56,40 @@ void DynamicExposureState::Update(float ev, float dt) {
 std::shared_ptr<WorldRenderer> WorldRenderer::CreateEmpty(
     const glm::uvec2& renderExtent,
     const glm::uvec2& temporalUpscaleExtent,
-    const std::shared_ptr<tekki::backend::vulkan::RenderBackend>& backend) {
-    
-    auto renderer = std::make_shared<WorldRenderer>();
-    
+    const std::shared_ptr<tekki::backend::vulkan::Device>& device) {
+
+    auto renderer = std::shared_ptr<WorldRenderer>(new WorldRenderer());
+
     // Initialize render passes
     // TODO: Implement render pass creation
-    
+
     // Initialize buffers
-    renderer->MeshBuffer = backend->Device->CreateBuffer(
+    renderer->MeshBuffer = device->CreateBuffer(
         tekki::backend::vulkan::BufferDesc::NewCpuToGpu(
             MAX_GPU_MESHES * sizeof(GpuMesh),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
         ),
-        "mesh buffer",
-        nullptr
+        "mesh buffer"
     );
 
-    renderer->VertexBuffer = std::make_shared<tekki::backend::vulkan::Buffer>(
-        backend->Device->CreateBuffer(
-            tekki::backend::vulkan::BufferDesc::NewGpuOnly(
-                VERTEX_BUFFER_CAPACITY,
-                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+    renderer->VertexBuffer = device->CreateBuffer(
+        tekki::backend::vulkan::BufferDesc::NewGpuOnly(
+            VERTEX_BUFFER_CAPACITY,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                 VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
                 VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR
-            ),
-            "vertex buffer",
-            nullptr
-        )
+                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+        ),
+        "vertex buffer"
     );
 
-    renderer->BindlessTextureSizes = backend->Device->CreateBuffer(
+    renderer->BindlessTextureSizes = device->CreateBuffer(
         tekki::backend::vulkan::BufferDesc::NewCpuToGpu(
-            backend->Device->MaxBindlessDescriptorCount() * sizeof(glm::vec4),
+            device->MaxBindlessDescriptorCount() * sizeof(glm::vec4),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
         ),
-        "bindless_texture_sizes",
-        nullptr
+        "bindless_texture_sizes"
     );
 
     // Initialize descriptor sets
@@ -109,20 +105,21 @@ std::shared_ptr<WorldRenderer> WorldRenderer::CreateEmpty(
     }
 
     // Initialize acceleration structure scratch buffer
-    renderer->AccelScratch = backend->Device->CreateRayTracingAccelerationScratchBuffer();
+    renderer->AccelScratch = device->CreateRayTracingAccelerationScratchBuffer();
 
     // Initialize renderers
-    renderer->Post = PostProcessRenderer(backend->Device);
-    renderer->Ssgi = SsgiRenderer();
-    renderer->Rtr = RtrRenderer(backend->Device);
-    renderer->Lighting = LightingRenderer();
-    renderer->Ircache = IrcacheRenderer(backend->Device);
-    renderer->Rtdgi = RtdgiRenderer();
-    renderer->Taa = TaaRenderer();
-    renderer->ShadowDenoise = ShadowDenoiseRenderer();
-    renderer->Ibl = IblRenderer();
+    // TODO: Initialize renderer subsystems properly when classes are defined
+    // renderer->Post = PostProcessRenderer(device);
+    // renderer->Ssgi = SsgiRenderer();
+    // renderer->Rtr = RtrRenderer(device);
+    // renderer->Lighting = LightingRenderer();
+    // renderer->Ircache = IrcacheRenderer(device);
+    // renderer->Rtdgi = RtdgiRenderer();
+    // renderer->Taa = TaaRenderer();
+    // renderer->ShadowDenoise = ShadowDenoiseRenderer();
+    // renderer->Ibl = IblRenderer();
 
-    renderer->Device = backend->Device;
+    renderer->Device = device;
     renderer->TemporalUpscaleExtent = temporalUpscaleExtent;
     renderer->FrameIdx = 0;
     renderer->NextInstanceHandle = 0;
@@ -132,7 +129,7 @@ std::shared_ptr<WorldRenderer> WorldRenderer::CreateEmpty(
     renderer->ResetReferenceAccumulation = false;
     renderer->UseDlss = false;
     renderer->DebugMode = RenderDebugMode::None;
-    renderer->DebugShadingMode = backend->Device->RayTracingEnabled() ? 0 : 4;
+    renderer->DebugShadingMode = device->RayTracingEnabled() ? 0 : 4;
     renderer->DebugShowWrc = false;
     renderer->EvShift = 0.0f;
     renderer->Contrast = 1.0f;
@@ -147,23 +144,23 @@ void WorldRenderer::AddImageLut(std::unique_ptr<class ComputeImageLut> computer,
     ImageLut imageLut(Device, std::move(computer));
     ImageLuts.push_back(std::move(imageLut));
 
-    auto view = ImageLuts.back().BackingImage()->View(Device, tekki::backend::vulkan::ImageViewDesc());
+    auto view = ImageLuts.back().BackingImage()->GetView(*Device, tekki::backend::vulkan::ImageViewDesc());
     auto handle = AddBindlessImageView(view);
-    
+
     if (handle.GetValue() != id) {
         throw std::runtime_error("Image LUT ID mismatch");
     }
 }
 
 BindlessImageHandle WorldRenderer::AddImage(const std::shared_ptr<tekki::backend::vulkan::Image>& image) {
-    auto view = image->View(Device, tekki::backend::vulkan::ImageViewDesc());
+    auto view = image->GetView(*Device, tekki::backend::vulkan::ImageViewDesc());
     auto handle = AddBindlessImageView(view);
 
     BindlessImages.push_back(image);
 
-    glm::vec4 imageSize = image->GetDesc().GetExtentInvExtent2D();
-    
-    auto mapped_data = BindlessTextureSizes.GetAllocation().GetMappedData();
+    glm::vec4 imageSize = image->desc.GetExtentInvExtent2d();
+
+    auto mapped_data = BindlessTextureSizes->Allocation.MappedSlice();
     auto sizes = reinterpret_cast<glm::vec4*>(mapped_data);
     sizes[handle.GetValue()] = imageSize;
 
@@ -214,9 +211,9 @@ MeshHandle WorldRenderer::AddMesh(const std::shared_ptr<tekki::asset::PackedTriM
     // Update mesh buffer
     {
         std::lock_guard<std::mutex> lock(MeshBufferMutex);
-        auto mapped_data = MeshBuffer->GetAllocation().GetMappedData();
+        auto mapped_data = MeshBuffer->Allocation.MappedSlice();
         auto gpu_meshes = reinterpret_cast<GpuMesh*>(mapped_data);
-        
+
         gpu_meshes[mesh_idx] = GpuMesh{
             /* vertex_core_offset */ 0,
             /* vertex_uv_offset */ 0,
@@ -230,8 +227,8 @@ MeshHandle WorldRenderer::AddMesh(const std::shared_ptr<tekki::asset::PackedTriM
     
     // Create BLAS if ray tracing is enabled
     if (Device->RayTracingEnabled()) {
-        auto vertex_buffer_da = VertexBuffer->GetDeviceAddress(Device) + /* vertex_core_offset */ 0;
-        auto index_buffer_da = VertexBuffer->GetDeviceAddress(Device) + /* index_offset */ 0;
+        auto vertex_buffer_da = VertexBuffer->DeviceAddress(Device->GetRaw()) + /* vertex_core_offset */ 0;
+        auto index_buffer_da = VertexBuffer->DeviceAddress(Device->GetRaw()) + /* index_offset */ 0;
         
         tekki::backend::vulkan::RayTracingBottomAccelerationDesc blas_desc;
         tekki::backend::vulkan::RayTracingGeometryDesc geometry_desc;
@@ -415,21 +412,27 @@ void WorldRenderer::PrepareRenderGraph(class TemporalRenderGraph& rg, const Worl
     switch (CurrentRenderMode) {
         case RenderMode::Standard:
             if (USE_TAA_JITTER) {
-                Taa.CurrentSupersampleOffset = SupersampleOffsets[FrameIdx % SupersampleOffsets.size()];
+                if (Taa) {
+                    Taa->CurrentSupersampleOffset = SupersampleOffsets[FrameIdx % SupersampleOffsets.size()];
+                }
             } else {
-                Taa.CurrentSupersampleOffset = glm::vec2(0.0f);
+                if (Taa) {
+                    Taa->CurrentSupersampleOffset = glm::vec2(0.0f);
+                }
             }
             PrepareRenderGraphStandard(rg, frameDesc);
             break;
-            
+
         case RenderMode::Reference:
-            Taa.CurrentSupersampleOffset = glm::vec2(0.0f);
+            if (Taa) {
+                Taa->CurrentSupersampleOffset = glm::vec2(0.0f);
+            }
             PrepareRenderGraphReference(rg, frameDesc);
             break;
     }
 }
 
-class FrameConstantsLayout WorldRenderer::PrepareFrameConstants(
+struct FrameConstantsLayout WorldRenderer::PrepareFrameConstants(
     tekki::backend::DynamicConstants& dynamicConstants,
     const WorldFrameDesc& frameDesc,
     float deltaTimeSeconds) {
@@ -440,9 +443,11 @@ class FrameConstantsLayout WorldRenderer::PrepareFrameConstants(
         prev_camera,
         frameDesc.RenderExtent
     ).Build();
-    
-    view_constants.SetPixelOffset(Taa.CurrentSupersampleOffset, frameDesc.RenderExtent);
-    
+
+    if (Taa) {
+        view_constants.SetPixelOffset(Taa->CurrentSupersampleOffset, frameDesc.RenderExtent);
+    }
+
     // Collect triangle lights
     std::vector<TriangleLight> triangle_lights;
     for (const auto& inst : Instances) {
@@ -451,9 +456,9 @@ class FrameConstantsLayout WorldRenderer::PrepareFrameConstants(
         glm::vec3 skew;
         glm::vec4 perspective;
         glm::decompose(inst.Transform, scale, rotation, translation, skew, perspective);
-        
+
         glm::vec3 emissive_multiplier(inst.DynamicParameters.EmissiveMultiplier);
-        
+
         const auto& mesh_light_set = MeshLights[inst.Mesh.GetValue()];
         for (const auto& light : mesh_light_set.Lights) {
             auto transformed_light = light.Transform(translation, glm::mat3_cast(rotation));
@@ -461,19 +466,23 @@ class FrameConstantsLayout WorldRenderer::PrepareFrameConstants(
             triangle_lights.push_back(scaled_light);
         }
     }
-    
+
     // Initialize IR cache cascades
     std::array<tekki::rust_shaders_shared::IrcacheCascadeConstants, IRCACHE_CASCADE_COUNT> ircache_cascades{};
-    
-    Ircache.UpdateEyePosition(view_constants.GetEyePosition());
-    
-    const auto& ircache_constants = Ircache.GetConstants();
-    for (size_t i = 0; i < ircache_constants.size() && i < IRCACHE_CASCADE_COUNT; ++i) {
-        ircache_cascades[i] = ircache_constants[i];
+
+    if (Ircache) {
+        Ircache->UpdateEyePosition(view_constants.GetEyePosition());
+
+        const auto& ircache_constants = Ircache->GetConstants();
+        for (size_t i = 0; i < ircache_constants.size() && i < IRCACHE_CASCADE_COUNT; ++i) {
+            ircache_cascades[i] = ircache_constants[i];
+        }
     }
-    
+
     constexpr float real_sun_angular_radius = glm::radians(0.53f) * 0.5f;
-    
+
+    glm::vec3 ircache_grid_center = Ircache ? Ircache->GetGridCenter() : glm::vec3(0.0f);
+
     tekki::rust_shaders_shared::FrameConstants frame_constants{
         view_constants,
         glm::vec4(frameDesc.SunDirection, 0.0f),
@@ -488,7 +497,7 @@ class FrameConstantsLayout WorldRenderer::PrepareFrameConstants(
         GetExposureState().PreMultDelta,
         0.0f,
         RenderOverrides,
-        glm::vec4(Ircache.GetGridCenter(), 1.0f),
+        glm::vec4(ircache_grid_center, 1.0f),
         ircache_cascades
     };
     
@@ -572,8 +581,9 @@ void WorldRenderer::StorePrevMeshTransforms() {
 
 void WorldRenderer::UpdatePreExposure() {
     constexpr float dt = 1.0f / 60.0f; // TODO: Use actual delta time
-    
-    DynamicExposure.Update(-Post.GetImageLog2Lum(), dt);
+
+    float image_log2_lum = Post ? Post->GetImageLog2Lum() : 0.0f;
+    DynamicExposure.Update(-image_log2_lum, dt);
     float ev_mult = std::exp2(EvShift + DynamicExposure.EvSmoothed());
     
     auto& exposure_state = ExposureStates[static_cast<int>(CurrentRenderMode)];

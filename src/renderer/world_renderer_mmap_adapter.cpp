@@ -1,19 +1,15 @@
 #include "tekki/renderer/world_renderer_mmap_adapter.h"
+#include "tekki/renderer/world_renderer.h"
+#include "tekki/renderer/mmap.h"
 #include <stdexcept>
 #include <string>
 
-namespace tekki::renderer {
+namespace tekki::renderer::mmap_adapter {
 
-std::shared_ptr<MeshHandle> WorldRenderer::AddBakedMesh(
-    const std::string& path,
-    const AddMeshOptions& opts
-) {
-    try {
-        auto mesh = MmapMappedAsset<PackedTriMeshFlat>(path);
-        return AddMesh(mesh, opts);
-    } catch (const std::exception& e) {
-        throw std::runtime_error("Failed to add baked mesh: " + std::string(e.what()));
-    }
+// Stub implementation for memory-mapped asset loading
+template<typename T>
+std::shared_ptr<T> MmapMappedAsset(const std::string& path) {
+    throw std::runtime_error("MmapMappedAsset not yet implemented");
 }
 
-} // namespace tekki::renderer
+} // namespace tekki::renderer::mmap_adapter

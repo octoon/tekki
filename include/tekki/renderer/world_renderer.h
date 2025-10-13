@@ -24,6 +24,17 @@
 
 namespace tekki::renderer {
 
+// Forward declarations for renderer subsystems
+class PostProcessRenderer;
+class SsgiRenderer;
+class RtrRenderer;
+class LightingRenderer;
+class IrcacheRenderer;
+class RtdgiRenderer;
+class TaaRenderer;
+class ShadowDenoiseRenderer;
+class IblRenderer;
+
 constexpr bool USE_TAA_JITTER = true;
 
 struct GpuMesh {
@@ -88,9 +99,12 @@ struct TriangleLight {
     
     TriangleLight Transform(const glm::vec3& translation, const glm::mat3& rotation) const {
         TriangleLight result = *this;
-        result.Verts[0] = { rotation * glm::vec3(Verts[0][0], Verts[0][1], Verts[0][2]) + translation };
-        result.Verts[1] = { rotation * glm::vec3(Verts[1][0], Verts[1][1], Verts[1][2]) + translation };
-        result.Verts[2] = { rotation * glm::vec3(Verts[2][0], Verts[2][1], Verts[2][2]) + translation };
+        auto v0 = rotation * glm::vec3(Verts[0][0], Verts[0][1], Verts[0][2]) + translation;
+        auto v1 = rotation * glm::vec3(Verts[1][0], Verts[1][1], Verts[1][2]) + translation;
+        auto v2 = rotation * glm::vec3(Verts[2][0], Verts[2][1], Verts[2][2]) + translation;
+        result.Verts[0] = { v0.x, v0.y, v0.z };
+        result.Verts[1] = { v1.x, v1.y, v1.z };
+        result.Verts[2] = { v2.x, v2.y, v2.z };
         return result;
     }
     
@@ -155,12 +169,13 @@ private:
 
 struct AddMeshOptions {
     bool UseLights;
-    
+
     AddMeshOptions() : UseLights(false) {}
-    
-    AddMeshOptions UseLights(bool value) {
-        UseLights = value;
-        return *this;
+
+    AddMeshOptions WithLights(bool value) {
+        AddMeshOptions result = *this;
+        result.UseLights = value;
+        return result;
     }
 };
 
@@ -175,11 +190,11 @@ public:
     static std::shared_ptr<WorldRenderer> CreateEmpty(
         const glm::uvec2& renderExtent,
         const glm::uvec2& temporalUpscaleExtent,
-        const std::shared_ptr<tekki::backend::vulkan::RenderBackend>& backend);
-    
+        const std::shared_ptr<tekki::backend::vulkan::Device>& device);
+
     void AddImageLut(std::unique_ptr<class ComputeImageLut> computer, size_t id);
     BindlessImageHandle AddImage(const std::shared_ptr<tekki::backend::vulkan::Image>& image);
-    MeshHandle AddMesh(const std::shared_ptr<tekki::asset::PackedTriMesh>& mesh, const AddMeshOptions& opts);
+    MeshHandle AddMesh(const std::shared_ptr<tekki::asset::PackedTriangleMesh>& mesh, const AddMeshOptions& opts);
     InstanceHandle AddInstance(MeshHandle mesh, const glm::mat4& transform);
     void RemoveInstance(InstanceHandle inst);
     void SetInstanceTransform(InstanceHandle inst, const glm::mat4& transform);
@@ -190,7 +205,7 @@ public:
     void PrepareTopLevelAcceleration(class TemporalRenderGraph& rg);
     ExposureState GetExposureState() const;
     void PrepareRenderGraph(class TemporalRenderGraph& rg, const WorldFrameDesc& frameDesc);
-    class FrameConstantsLayout PrepareFrameConstants(
+    struct FrameConstantsLayout PrepareFrameConstants(
         tekki::backend::DynamicConstants& dynamicConstants,
         const WorldFrameDesc& frameDesc,
         float deltaTimeSeconds);
@@ -238,15 +253,15 @@ private:
     std::shared_ptr<class GraphDebugHook> RgDebugHook;
     RenderMode CurrentRenderMode;
     bool ResetReferenceAccumulation;
-    class PostProcessRenderer Post;
-    class SsgiRenderer Ssgi;
-    class RtrRenderer Rtr;
-    class LightingRenderer Lighting;
-    class IrcacheRenderer Ircache;
-    class RtdgiRenderer Rtdgi;
-    class TaaRenderer Taa;
-    class ShadowDenoiseRenderer ShadowDenoise;
-    class IblRenderer Ibl;
+    std::unique_ptr<PostProcessRenderer> Post;
+    std::unique_ptr<SsgiRenderer> Ssgi;
+    std::unique_ptr<RtrRenderer> Rtr;
+    std::unique_ptr<LightingRenderer> Lighting;
+    std::unique_ptr<IrcacheRenderer> Ircache;
+    std::unique_ptr<RtdgiRenderer> Rtdgi;
+    std::unique_ptr<TaaRenderer> Taa;
+    std::unique_ptr<ShadowDenoiseRenderer> ShadowDenoise;
+    std::unique_ptr<IblRenderer> Ibl;
     bool UseDlss;
     RenderDebugMode DebugMode;
     size_t DebugShadingMode;

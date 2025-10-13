@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <cstdint>
+#include <variant>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan.h>
@@ -60,6 +61,9 @@ struct RayTracingShaderTableDesc {
 
 class RayTracingAcceleration {
 public:
+    // Descriptor type - can be either top-level or bottom-level
+    using Desc = std::variant<RayTracingTopAccelerationDesc, RayTracingBottomAccelerationDesc>;
+
     VkAccelerationStructureKHR Raw;
     Buffer BackingBuffer;
 

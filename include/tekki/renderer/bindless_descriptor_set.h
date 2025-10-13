@@ -3,6 +3,8 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <string>
+#include <stdexcept>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 

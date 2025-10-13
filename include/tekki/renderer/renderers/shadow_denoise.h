@@ -4,16 +4,19 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
-#include "tekki/renderer/render_graph/temporal_render_graph.h"
-#include "tekki/renderer/resources/gbuffer_depth.h"
-#include "tekki/renderer/resources/ping_pong_temporal_resource.h"
+#include "tekki/render_graph/temporal.h"
+#include "tekki/render_graph/Image.h"
+#include "tekki/renderer/renderers/gbuffer_depth.h"
+#include "tekki/renderer/renderers/ping_pong_temporal_resource.h"
 
 namespace tekki::renderer::renderers {
+
+namespace rg = tekki::render_graph;
 
 class ShadowDenoiseRenderer {
 public:
     ShadowDenoiseRenderer();
-    
+
     /**
      * Render shadow denoising pass
      * @param rg Temporal render graph
@@ -22,11 +25,11 @@ public:
      * @param reprojectionMap Reprojection map for temporal accumulation
      * @return Denoised shadow output
      */
-    std::shared_ptr<tekki::renderer::Image> Render(
-        std::shared_ptr<tekki::renderer::TemporalRenderGraph> rg,
-        std::shared_ptr<tekki::renderer::GbufferDepth> gbufferDepth,
-        std::shared_ptr<tekki::renderer::Image> shadowMask,
-        std::shared_ptr<tekki::renderer::Image> reprojectionMap
+    rg::Handle<rg::Image> Render(
+        rg::TemporalRenderGraph& rg,
+        const GbufferDepth& gbufferDepth,
+        const rg::Handle<rg::Image>& shadowMask,
+        const rg::Handle<rg::Image>& reprojectionMap
     );
 
 private:
@@ -40,13 +43,13 @@ private:
      * @param gbufferDepth G-buffer and depth information
      * @param bitpackedShadowMaskExtent Extent of bitpacked shadow mask
      */
-    void FilterSpatial(
-        std::shared_ptr<tekki::renderer::TemporalRenderGraph> rg,
+    static void FilterSpatial(
+        rg::TemporalRenderGraph& rg,
         uint32_t stepSize,
-        std::shared_ptr<tekki::renderer::Image> inputImage,
-        std::shared_ptr<tekki::renderer::Image> outputImage,
-        std::shared_ptr<tekki::renderer::Image> metadataImage,
-        std::shared_ptr<tekki::renderer::GbufferDepth> gbufferDepth,
+        const rg::Handle<rg::Image>& inputImage,
+        rg::Handle<rg::Image>& outputImage,
+        const rg::Handle<rg::Image>& metadataImage,
+        const GbufferDepth& gbufferDepth,
         glm::uvec2 bitpackedShadowMaskExtent
     );
 

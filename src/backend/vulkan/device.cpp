@@ -11,6 +11,7 @@
 #include "tekki/gpu_profiler/gpu_profiler.h"
 #include "tekki/core/result.h"
 #include "tekki/backend/vulkan/buffer.h"
+#include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/physical_device.h"
 #include "tekki/backend/vulkan/profiler.h"
 #include "tekki/backend/vulkan/instance.h"
@@ -154,7 +155,7 @@ Buffer Device::CreateBufferImpl(VkDevice device, tekki::Allocator* allocator,
     // Construct and return Buffer struct
     Buffer result;
     result.Raw = buffer;
-    result.Desc = desc;
+    result.desc = desc;
     result.Allocation = std::move(allocation);
     return result;
 }
@@ -660,6 +661,220 @@ void Device::ImmediateDestroyBuffer(Buffer buffer) {
     std::lock_guard<std::mutex> lock(*globalAllocatorMutex_);
     vkDestroyBuffer(raw_, buffer.Raw, nullptr);
     globalAllocator_->Free(std::move(buffer.Allocation));
+}
+
+std::shared_ptr<Image> Device::CreateImage(const ImageDesc& desc, const std::vector<uint8_t>& initialData) {
+    std::lock_guard<std::mutex> lock(*globalAllocatorMutex_);
+
+    // Create image
+    bool hasInitialData = !initialData.empty();
+    VkImageCreateInfo imageInfo = GetImageCreateInfo(desc, hasInitialData);
+
+    VkImage vkImage;
+    if (vkCreateImage(raw_, &imageInfo, nullptr, &vkImage) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create image");
+    }
+
+    // Allocate memory for the image
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(raw_, vkImage, &memRequirements);
+
+    tekki::AllocationCreateDesc allocDesc{};
+    allocDesc.requirements = memRequirements;
+    allocDesc.location = tekki::MemoryLocation::GpuOnly;
+    allocDesc.linear = false;
+    allocDesc.allocation_scheme = tekki::AllocationScheme::GpuAllocatorManaged;
+
+    auto allocation = globalAllocator_->Allocate(allocDesc);
+    if (allocation.IsNull()) {
+        vkDestroyImage(raw_, vkImage, nullptr);
+        throw std::runtime_error("Failed to allocate image memory");
+    }
+
+    // Bind memory to image
+    if (vkBindImageMemory(raw_, vkImage, allocation.Memory(), allocation.Offset()) != VK_SUCCESS) {
+        vkDestroyImage(raw_, vkImage, nullptr);
+        globalAllocator_->Free(std::move(allocation));
+        throw std::runtime_error("Failed to bind image memory");
+    }
+
+    // Upload initial data if provided
+    if (hasInitialData) {
+        // TODO: Implement initial data upload using staging buffer
+        // This would require transitioning image layout and using vkCmdCopyBufferToImage
+    }
+
+    // Create Image object
+    auto image = std::make_shared<Image>(vkImage, desc);
+    // Note: We should store the allocation somewhere, but the current Image class doesn't have it
+    // This is a TODO for proper implementation
+
+    return image;
+}
+
+std::shared_ptr<Image> Device::CreateImage(const ImageDesc& desc, const std::vector<ImageSubResourceData>& initialData) {
+    std::lock_guard<std::mutex> lock(*globalAllocatorMutex_);
+
+    // Create image
+    bool hasInitialData = !initialData.empty();
+    VkImageCreateInfo imageInfo = GetImageCreateInfo(desc, hasInitialData);
+
+    VkImage vkImage;
+    if (vkCreateImage(raw_, &imageInfo, nullptr, &vkImage) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create image");
+    }
+
+    // Allocate memory for the image
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(raw_, vkImage, &memRequirements);
+
+    tekki::AllocationCreateDesc allocDesc{};
+    allocDesc.requirements = memRequirements;
+    allocDesc.location = tekki::MemoryLocation::GpuOnly;
+    allocDesc.linear = false;
+    allocDesc.allocation_scheme = tekki::AllocationScheme::GpuAllocatorManaged;
+
+    auto allocation = globalAllocator_->Allocate(allocDesc);
+    if (allocation.IsNull()) {
+        vkDestroyImage(raw_, vkImage, nullptr);
+        throw std::runtime_error("Failed to allocate image memory");
+    }
+
+    // Bind memory to image
+    if (vkBindImageMemory(raw_, vkImage, allocation.Memory(), allocation.Offset()) != VK_SUCCESS) {
+        vkDestroyImage(raw_, vkImage, nullptr);
+        globalAllocator_->Free(std::move(allocation));
+        throw std::runtime_error("Failed to bind image memory");
+    }
+
+    // Upload initial data if provided
+    if (hasInitialData) {
+        // Calculate total size needed for staging buffer
+        size_t totalSize = 0;
+        for (const auto& subresource : initialData) {
+            totalSize += subresource.Data.size();
+        }
+
+        // Create staging buffer
+        BufferDesc stagingDesc;
+        stagingDesc.Size = totalSize;
+        stagingDesc.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        stagingDesc.MemoryLocation = tekki::MemoryLocation::CpuToGpu;
+
+        Buffer stagingBuffer = CreateBufferImpl(raw_, globalAllocator_.get(), stagingDesc, "image staging buffer");
+        auto mappedSlice = stagingBuffer.Allocation.MappedSlice();
+        if (!mappedSlice) {
+            vkDestroyImage(raw_, vkImage, nullptr);
+            globalAllocator_->Free(std::move(allocation));
+            throw std::runtime_error("Failed to map staging buffer");
+        }
+
+        // Copy data to staging buffer and prepare copy regions
+        std::vector<VkBufferImageCopy> copyRegions;
+        size_t bufferOffset = 0;
+
+        for (uint32_t mipLevel = 0; mipLevel < initialData.size(); ++mipLevel) {
+            const auto& subresource = initialData[mipLevel];
+
+            // Copy data to staging buffer
+            std::memcpy(static_cast<uint8_t*>(mappedSlice) + bufferOffset,
+                       subresource.Data.data(),
+                       subresource.Data.size());
+
+            // Set up copy region
+            VkBufferImageCopy region{};
+            region.bufferOffset = bufferOffset;
+            region.bufferRowLength = 0; // Tightly packed
+            region.bufferImageHeight = 0; // Tightly packed
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = mipLevel;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {0, 0, 0};
+
+            uint32_t mipWidth = std::max(desc.Extent.x >> mipLevel, 1u);
+            uint32_t mipHeight = std::max(desc.Extent.y >> mipLevel, 1u);
+            uint32_t mipDepth = std::max(desc.Extent.z >> mipLevel, 1u);
+
+            region.imageExtent = {mipWidth, mipHeight, mipDepth};
+
+            copyRegions.push_back(region);
+            bufferOffset += subresource.Data.size();
+        }
+
+        // Execute copy command
+        WithSetupCb([&](VkCommandBuffer cb) {
+            // Transition image to transfer dst optimal
+            VkImageMemoryBarrier barrier{};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = vkImage;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel = 0;
+            barrier.subresourceRange.levelCount = desc.MipLevels;
+            barrier.subresourceRange.baseArrayLayer = 0;
+            barrier.subresourceRange.layerCount = 1;
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+            vkCmdPipelineBarrier(
+                cb,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier
+            );
+
+            // Copy buffer to image
+            vkCmdCopyBufferToImage(
+                cb,
+                stagingBuffer.Raw,
+                vkImage,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                static_cast<uint32_t>(copyRegions.size()),
+                copyRegions.data()
+            );
+
+            // Transition image to shader read optimal
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(
+                cb,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier
+            );
+        });
+
+        // Clean up staging buffer
+        ImmediateDestroyBuffer(std::move(stagingBuffer));
+    }
+
+    // Create Image object
+    auto image = std::make_shared<Image>(vkImage, desc);
+    // Note: We should store the allocation somewhere, but the current Image class doesn't have it
+    // This is a TODO for proper implementation
+
+    return image;
+}
+
+void Device::ImmediateDestroyImage(std::shared_ptr<Image> image) {
+    if (image && image->Raw) {
+        std::lock_guard<std::mutex> lock(*globalAllocatorMutex_);
+        vkDestroyImage(raw_, image->Raw, nullptr);
+        // TODO: Free the image allocation when Image class is updated to store it
+    }
 }
 
 } // namespace tekki::backend::vulkan

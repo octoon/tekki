@@ -9,10 +9,12 @@
 #include <glm/glm.hpp>
 #include <variant>
 #include <optional>
+#include <spdlog/spdlog.h>
 #include "tekki/core/result.h"
 #include "tekki/render_graph/resource.h"
 #include "tekki/render_graph/resource_registry.h"
 #include "tekki/render_graph/pass_builder.h"
+#include "tekki/render_graph/desc_convert.h"
 #include "tekki/renderer/FrameConstantsLayout.h"
 
 namespace tekki::render_graph {
@@ -30,7 +32,7 @@ RenderGraph::RenderGraph()
 
 GraphRawResourceHandle RenderGraph::CreateRawResource(const GraphResourceCreateInfo& info) {
     GraphRawResourceHandle res;
-    res.id = Resources.size();
+    res.id = static_cast<uint32_t>(Resources.size());
     res.version = 0;
 
     Resources.push_back(GraphResourceInfo{GraphResourceCreateInfo{info.Desc}});
@@ -39,10 +41,10 @@ GraphRawResourceHandle RenderGraph::CreateRawResource(const GraphResourceCreateI
 
 Handle<Image> RenderGraph::GetSwapChain() {
     GraphRawResourceHandle res;
-    res.id = Resources.size();
+    res.id = static_cast<uint32_t>(Resources.size());
     res.version = 0;
 
-    Resources.push_back(GraphResourceInfo{GraphResourceImportInfo::SwapchainImage});
+    Resources.push_back(GraphResourceInfo{GraphResourceImportInfo::Swapchain()});
 
     ImageDesc desc;
     desc.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -54,14 +56,14 @@ Handle<Image> RenderGraph::GetSwapChain() {
 
 PassBuilder RenderGraph::AddPass(const std::string& name) {
     std::size_t passIdx = Passes.size();
-    return PassBuilder(this, name, passIdx);
+    return PassBuilder(*this, name, passIdx);
 }
 
 ResourceInfo RenderGraph::CalculateResourceInfo() const {
     std::vector<ResourceLifetime> lifetimes;
     std::vector<vk::ImageUsageFlags> imageUsageFlags(Resources.size());
     std::vector<vk::BufferUsageFlags> bufferUsageFlags(Resources.size());
-    
+
     for (const auto& resource : Resources) {
         ResourceLifetime lifetime;
         if (std::holds_alternative<GraphResourceImportInfo>(resource.Info)) {
@@ -69,24 +71,24 @@ ResourceInfo RenderGraph::CalculateResourceInfo() const {
         }
         lifetimes.push_back(lifetime);
     }
-    
+
     for (std::size_t resIdx = 0; resIdx < Resources.size(); ++resIdx) {
         const auto& resource = Resources[resIdx];
         if (std::holds_alternative<GraphResourceCreateInfo>(resource.Info)) {
             const auto& createInfo = std::get<GraphResourceCreateInfo>(resource.Info);
             if (std::holds_alternative<ImageDesc>(createInfo.Desc)) {
                 const auto& desc = std::get<ImageDesc>(createInfo.Desc);
-                imageUsageFlags[resIdx] = desc.Usage;
+                imageUsageFlags[resIdx] = vk::ImageUsageFlags(desc.usage);
             } else if (std::holds_alternative<BufferDesc>(createInfo.Desc)) {
                 const auto& desc = std::get<BufferDesc>(createInfo.Desc);
-                bufferUsageFlags[resIdx] = desc.Usage;
+                bufferUsageFlags[resIdx] = vk::BufferUsageFlags(desc.usage);
             }
         }
     }
-    
+
     for (std::size_t passIdx = 0; passIdx < Passes.size(); ++passIdx) {
         const auto& pass = Passes[passIdx];
-        
+
         for (const auto& resAccess : pass.Read) {
             std::size_t resourceIndex = resAccess.Handle.id;
             auto& lifetime = lifetimes[resourceIndex];
@@ -104,10 +106,10 @@ ResourceInfo RenderGraph::CalculateResourceInfo() const {
                 }
             } else if (std::holds_alternative<GraphResourceImportInfo>(resource.Info)) {
                 const auto& importInfo = std::get<GraphResourceImportInfo>(resource.Info);
-                if (importInfo == GraphResourceImportInfo::Image ||
-                    importInfo == GraphResourceImportInfo::SwapchainImage) {
+                if (std::holds_alternative<GraphResourceImportInfo::ImageImport>(importInfo.data) ||
+                    std::holds_alternative<GraphResourceImportInfo::SwapchainImage>(importInfo.data)) {
                     imageUsageFlags[resourceIndex] |= ImageAccessMaskToUsageFlags(accessMask);
-                } else if (importInfo == GraphResourceImportInfo::Buffer) {
+                } else if (std::holds_alternative<GraphResourceImportInfo::BufferImport>(importInfo.data)) {
                     bufferUsageFlags[resourceIndex] |= BufferAccessMaskToUsageFlags(accessMask);
                 }
             }
@@ -117,7 +119,7 @@ ResourceInfo RenderGraph::CalculateResourceInfo() const {
             std::size_t resourceIndex = resAccess.Handle.id;
             auto& lifetime = lifetimes[resourceIndex];
             lifetime.LastAccess = std::max(lifetime.LastAccess.value_or(passIdx), passIdx);
-            
+
             auto accessMask = vk_sync::get_access_info(resAccess.Access.AccessType).access_mask;
 
             const auto& resource = Resources[resourceIndex];
@@ -130,37 +132,32 @@ ResourceInfo RenderGraph::CalculateResourceInfo() const {
                 }
             } else if (std::holds_alternative<GraphResourceImportInfo>(resource.Info)) {
                 const auto& importInfo = std::get<GraphResourceImportInfo>(resource.Info);
-                if (importInfo == GraphResourceImportInfo::Image ||
-                    importInfo == GraphResourceImportInfo::SwapchainImage) {
+                if (std::holds_alternative<GraphResourceImportInfo::ImageImport>(importInfo.data) ||
+                    std::holds_alternative<GraphResourceImportInfo::SwapchainImage>(importInfo.data)) {
                     imageUsageFlags[resourceIndex] |= ImageAccessMaskToUsageFlags(accessMask);
-                } else if (importInfo == GraphResourceImportInfo::Buffer) {
+                } else if (std::holds_alternative<GraphResourceImportInfo::BufferImport>(importInfo.data)) {
                     bufferUsageFlags[resourceIndex] |= BufferAccessMaskToUsageFlags(accessMask);
                 }
             }
         }
     }
-    
+
     for (const auto& [exportableResource, accessType] : ExportedResources) {
-        std::size_t rawId = 0;
-        if (exportableResource == ExportableGraphResource::Image) {
-            // Get handle from exported resources
-        } else if (exportableResource == ExportableGraphResource::Buffer) {
-            // Get handle from exported resources
-        }
-        
+        std::size_t rawId = exportableResource.GetRaw().id;
+
         lifetimes[rawId].LastAccess = Passes.size() > 0 ? Passes.size() - 1 : 0;
-        
-        if (accessType != vk_sync::AccessType::Nothing) {
+
+        if (accessType != vk_sync::AccessType::None) {
             auto accessMask = vk_sync::get_access_info(accessType).access_mask;
-            
-            if (exportableResource == ExportableGraphResource::Image) {
+
+            if (exportableResource.GetType() == ExportableGraphResource::Type::Image) {
                 imageUsageFlags[rawId] |= ImageAccessMaskToUsageFlags(accessMask);
-            } else if (exportableResource == ExportableGraphResource::Buffer) {
+            } else if (exportableResource.GetType() == ExportableGraphResource::Type::Buffer) {
                 bufferUsageFlags[rawId] |= BufferAccessMaskToUsageFlags(accessMask);
             }
         }
     }
-    
+
     return ResourceInfo{lifetimes, imageUsageFlags, bufferUsageFlags};
 }
 
@@ -168,14 +165,14 @@ std::optional<PendingDebugPass> RenderGraph::HookDebugPass(const RecordedPass& p
     if (!DebugHook.has_value()) {
         return std::nullopt;
     }
-    
+
     const auto& scopeHook = DebugHook.value().RenderDebugHook;
     if (pass.Name != scopeHook.Name || pass.Idx != scopeHook.Id) {
         return std::nullopt;
     }
-    
+
     auto isDebugCompatible = [](const ImageDesc& desc) -> bool {
-        return vk_sync::image_aspect_mask_from_format(desc.format) == vk::ImageAspectFlagBits::eColor &&
+        return vk_sync::image_aspect_mask_from_format(desc.format) == VK_IMAGE_ASPECT_COLOR_BIT &&
                desc.image_type == ImageType::Tex2d;
     };
 
@@ -197,14 +194,23 @@ std::optional<PendingDebugPass> RenderGraph::HookDebugPass(const RecordedPass& p
             }
         } else if (std::holds_alternative<GraphResourceImportInfo>(resource.Info)) {
             const auto& importInfo = std::get<GraphResourceImportInfo>(resource.Info);
-            if (importInfo == GraphResourceImportInfo::Image) {
-                // For imported images, we'd need access to the actual resource
-                // This is simplified for the translation
-                return std::nullopt;
+            if (std::holds_alternative<GraphResourceImportInfo::ImageImport>(importInfo.data)) {
+                const auto& imageImport = std::get<GraphResourceImportInfo::ImageImport>(importInfo.data);
+                const auto& img = imageImport.resource;
+
+                // Imported resources must also support SAMPLED usage
+                if (img->desc.usage & VK_IMAGE_USAGE_SAMPLED_BIT && isDebugCompatible(img->desc)) {
+                    ImageDesc modifiedDesc = img->desc;
+                    modifiedDesc.mip_levels = 1;
+                    modifiedDesc.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+
+                    Handle<Image> srcHandle{srcRef.Handle, modifiedDesc};
+                    return PendingDebugPass{srcHandle};
+                }
             }
         }
     }
-    
+
     return std::nullopt;
 }
 
@@ -250,75 +256,99 @@ CompiledRenderGraph::CompiledRenderGraph(RenderGraph&& rg, const ResourceInfo& r
 
 ExecutingRenderGraph CompiledRenderGraph::BeginExecute(const RenderGraphExecutionParams& params, TransientResourceCache* transientResourceCache, DynamicConstants* dynamicConstants) {
     std::vector<RegistryResource> resources;
-    
+
     for (std::size_t resourceIdx = 0; resourceIdx < Rg.Resources.size(); ++resourceIdx) {
         const auto& resource = Rg.Resources[resourceIdx];
-        
+
         if (std::holds_alternative<GraphResourceCreateInfo>(resource.Info)) {
             const auto& createInfo = std::get<GraphResourceCreateInfo>(resource.Info);
-            
+
             if (std::holds_alternative<ImageDesc>(createInfo.Desc)) {
                 auto desc = std::get<ImageDesc>(createInfo.Desc);
-                desc.usage = ResourceInfo_.ImageUsageFlags[resourceIdx];
+                desc.usage = static_cast<VkImageUsageFlags>(ResourceInfo_.ImageUsageFlags[resourceIdx]);
 
                 std::shared_ptr<Image> image;
                 try {
                     image = transientResourceCache->GetImage(desc);
                     if (!image) {
-                        image = params.Device->CreateImage(desc, {});
+                        auto vkDesc = ConvertImageDesc(desc);
+                        std::shared_ptr<tekki::backend::vulkan::Image> vkImage = params.Device->CreateImage(vkDesc, std::vector<uint8_t>{});
+
+                        // Create render_graph::Image wrapper
+                        image = std::make_shared<Image>(desc);
+                        image->raw = vkImage->Raw;
+                        image->Raw = vkImage->Raw;
                     }
                 } catch (const std::exception& e) {
                     throw std::runtime_error("Failed to create image: " + std::string(e.what()));
                 }
 
-                resources.push_back(RegistryResource{
-                    AnyRenderResource::OwnedImage(image),
-                    vk_sync::AccessType::Nothing
-                });
+                RegistryResource reg_res;
+                reg_res.Resource = AnyRenderResource::OwnedImage(image);
+                reg_res.AccessType = vk_sync::AccessType::None;
+                resources.push_back(std::move(reg_res));
             } else if (std::holds_alternative<BufferDesc>(createInfo.Desc)) {
                 auto desc = std::get<BufferDesc>(createInfo.Desc);
-                desc.usage = ResourceInfo_.BufferUsageFlags[resourceIdx];
+                desc.usage = static_cast<VkBufferUsageFlags>(ResourceInfo_.BufferUsageFlags[resourceIdx]);
 
                 std::shared_ptr<Buffer> buffer;
                 try {
                     buffer = transientResourceCache->GetBuffer(desc);
                     if (!buffer) {
-                        buffer = params.Device->CreateBuffer(desc, "rg buffer", std::nullopt);
+                        auto vkDesc = ConvertBufferDesc(desc);
+                        tekki::backend::vulkan::Buffer vkBuffer = params.Device->CreateBuffer(vkDesc, "rg buffer", {});
+
+                        // Create render_graph::Buffer wrapper
+                        buffer = std::make_shared<Buffer>(desc);
+                        buffer->raw = vkBuffer.Raw;
+                        buffer->Raw = vkBuffer.Raw;
                     }
                 } catch (const std::exception& e) {
                     throw std::runtime_error("Failed to create buffer: " + std::string(e.what()));
                 }
 
-                resources.push_back(RegistryResource{
-                    AnyRenderResource::OwnedBuffer(buffer),
-                    vk_sync::AccessType::Nothing
-                });
+                RegistryResource reg_res;
+                reg_res.Resource = AnyRenderResource::OwnedBuffer(buffer);
+                reg_res.AccessType = vk_sync::AccessType::None;
+                resources.push_back(std::move(reg_res));
             }
         } else if (std::holds_alternative<GraphResourceImportInfo>(resource.Info)) {
             const auto& importInfo = std::get<GraphResourceImportInfo>(resource.Info);
-            
-            if (importInfo == GraphResourceImportInfo::Image) {
-                // Implementation for imported image would go here
-            } else if (importInfo == GraphResourceImportInfo::Buffer) {
-                // Implementation for imported buffer would go here
-            } else if (importInfo == GraphResourceImportInfo::RayTracingAcceleration) {
-                // Implementation for imported RT acceleration would go here
-            } else if (importInfo == GraphResourceImportInfo::SwapchainImage) {
-                resources.push_back(RegistryResource{
-                    AnyRenderResource::Pending(PendingRenderResourceInfo{resource}),
-                    vk_sync::AccessType::ComputeShaderWrite
-                });
+
+            if (std::holds_alternative<GraphResourceImportInfo::ImageImport>(importInfo.data)) {
+                const auto& imageImport = std::get<GraphResourceImportInfo::ImageImport>(importInfo.data);
+                RegistryResource reg_res;
+                reg_res.Resource = AnyRenderResource::ImportedImage(imageImport.resource);
+                reg_res.AccessType = imageImport.access_type;
+                resources.push_back(std::move(reg_res));
+            } else if (std::holds_alternative<GraphResourceImportInfo::BufferImport>(importInfo.data)) {
+                const auto& bufferImport = std::get<GraphResourceImportInfo::BufferImport>(importInfo.data);
+                RegistryResource reg_res;
+                reg_res.Resource = AnyRenderResource::ImportedBuffer(bufferImport.resource);
+                reg_res.AccessType = bufferImport.access_type;
+                resources.push_back(std::move(reg_res));
+            } else if (std::holds_alternative<GraphResourceImportInfo::RayTracingAccelerationImport>(importInfo.data)) {
+                const auto& rtImport = std::get<GraphResourceImportInfo::RayTracingAccelerationImport>(importInfo.data);
+                RegistryResource reg_res;
+                reg_res.Resource = AnyRenderResource::ImportedRayTracingAcceleration(rtImport.resource);
+                reg_res.AccessType = rtImport.access_type;
+                resources.push_back(std::move(reg_res));
+            } else if (std::holds_alternative<GraphResourceImportInfo::SwapchainImage>(importInfo.data)) {
+                RegistryResource reg_res;
+                reg_res.Resource = AnyRenderResource::Pending(PendingRenderResourceInfo{std::make_shared<GraphResourceInfo>(resource)});
+                reg_res.AccessType = vk_sync::AccessType::ComputeShaderWrite;
+                resources.push_back(std::move(reg_res));
             }
         }
     }
-    
+
     ResourceRegistry resourceRegistry{
-        params,
-        resources,
+        &params,
+        std::move(resources),
         dynamicConstants,
-        Pipelines
+        &Pipelines
     };
-    
+
     return ExecutingRenderGraph(
         std::deque<RecordedPass>(Rg.Passes.begin(), Rg.Passes.end()),
         std::vector<GraphResourceInfo>(Rg.Resources.begin(), Rg.Resources.end()),
@@ -332,14 +362,14 @@ ExecutingRenderGraph::ExecutingRenderGraph(std::deque<RecordedPass>&& passes, st
 
 void ExecutingRenderGraph::RecordMainCb(const CommandBuffer& cb) {
     std::size_t firstPresentationPass = Passes.size();
-    
+
     for (std::size_t passIdx = 0; passIdx < Passes.size(); ++passIdx) {
         const auto& pass = Passes[passIdx];
         for (const auto& res : pass.Write) {
             const auto& resource = Resources[res.Handle.id];
             if (std::holds_alternative<GraphResourceImportInfo>(resource.Info)) {
                 const auto& importInfo = std::get<GraphResourceImportInfo>(resource.Info);
-                if (importInfo == GraphResourceImportInfo::SwapchainImage) {
+                if (std::holds_alternative<GraphResourceImportInfo::SwapchainImage>(importInfo.data)) {
                     firstPresentationPass = passIdx;
                     break;
                 }
@@ -361,38 +391,39 @@ void ExecutingRenderGraph::RecordMainCb(const CommandBuffer& cb) {
             resourceFirstAccessStates[resourceRef.Handle.id] = &resourceRef.Access;
         }
     }
-    
+
     const auto& params = ResourceRegistry_.ExecutionParams;
     for (auto& [resourceIdx, access] : resourceFirstAccessStates) {
         auto& resource = ResourceRegistry_.Resources[resourceIdx];
         TransitionResource(
-            params.Device,
+            params->Device,
             cb,
             &resource,
             PassResourceAccessType{access->AccessType, PassResourceAccessSyncType::SkipSyncIfSameAccessType},
             false,
             ""
         );
-        
+
         access->SyncType = PassResourceAccessSyncType::SkipSyncIfSameAccessType;
     }
-    
+
     for (std::size_t i = 0; i < firstPresentationPass; ++i) {
         RecordPassCb(passes[i], &ResourceRegistry_, cb);
     }
-    
+
     Passes = std::deque<RecordedPass>(passes.begin() + firstPresentationPass, passes.end());
 }
 
 RetiredRenderGraph ExecutingRenderGraph::RecordPresentationCb(const CommandBuffer& cb, const std::shared_ptr<Image>& swapchainImage) {
     const auto& params = ResourceRegistry_.ExecutionParams;
-    
+
+    // Transition exported images to the requested access types
     for (const auto& [resourceIdx, accessType] : ExportedResources) {
-        if (accessType != vk_sync::AccessType::Nothing) {
-            std::size_t rawId = 0; // Would get from resourceIdx
+        if (accessType != vk_sync::AccessType::None) {
+            std::size_t rawId = resourceIdx.GetRaw().id;
             auto& resource = ResourceRegistry_.Resources[rawId];
             TransitionResource(
-                params.Device,
+                params->Device,
                 cb,
                 &resource,
                 PassResourceAccessType{accessType, PassResourceAccessSyncType::AlwaysSync},
@@ -401,13 +432,14 @@ RetiredRenderGraph ExecutingRenderGraph::RecordPresentationCb(const CommandBuffe
             );
         }
     }
-    
+
+    // Resolve pending resources (swapchain)
     for (auto& res : ResourceRegistry_.Resources) {
         if (std::holds_alternative<AnyRenderResource::Pending>(res.Resource)) {
             auto& pending = std::get<AnyRenderResource::Pending>(res.Resource);
-            if (std::holds_alternative<GraphResourceImportInfo>(pending.Info.Resource.Info)) {
-                const auto& importInfo = std::get<GraphResourceImportInfo>(pending.Info.Resource.Info);
-                if (importInfo == GraphResourceImportInfo::SwapchainImage) {
+            if (std::holds_alternative<GraphResourceImportInfo>(pending.Resource->Info)) {
+                const auto& importInfo = std::get<GraphResourceImportInfo>(pending.Resource->Info);
+                if (std::holds_alternative<GraphResourceImportInfo::SwapchainImage>(importInfo.data)) {
                     res.Resource = AnyRenderResource::ImportedImage(swapchainImage);
                 } else {
                     throw std::runtime_error("Only swapchain can be currently pending");
@@ -415,27 +447,31 @@ RetiredRenderGraph ExecutingRenderGraph::RecordPresentationCb(const CommandBuffe
             }
         }
     }
-    
+
     auto passes = std::move(Passes);
     for (const auto& pass : passes) {
         RecordPassCb(pass, &ResourceRegistry_, cb);
     }
-    
+
     return RetiredRenderGraph(std::move(ResourceRegistry_.Resources));
 }
 
 void ExecutingRenderGraph::RecordPassCb(const RecordedPass& pass, ResourceRegistry* resourceRegistry, const CommandBuffer& cb) {
     const auto& params = resourceRegistry->ExecutionParams;
-    
+
     try {
-        params.Device->RecordCrashMarker(cb, "begin render pass " + pass.Name);
-        
-        if (auto debugUtils = params.Device->DebugUtils()) {
+        // RecordCrashMarker and backend CommandBuffer commented out
+        // backend::vulkan::CommandBuffer backendCb(params->Device->GetRaw(), params->Device->GetUniversalQueue().Family);
+        // params->Device->RecordCrashMarker(cb, "begin render pass " + pass.Name);
+
+        if (auto debugUtils = params->Device->DebugUtils()) {
             debugUtils->CmdBeginDebugUtilsLabel(cb.Raw, pass.Name);
         }
-        
-        // GPU profiling scope would go here
-        
+
+        // GPU profiling scope - commented out until profiler is implemented
+        // auto queryId = kajiya_backend::gpu_profiler::Profiler().CreateScope(pass.Name);
+        // auto vkScope = const_cast<VkProfilerData*>(params->ProfilerData)->BeginScope(params->Device->GetRaw(), cb.Raw, queryId);
+
         std::vector<std::pair<std::size_t, PassResourceAccessType>> transitions;
         for (const auto& resourceRef : pass.Read) {
             transitions.emplace_back(resourceRef.Handle.id, resourceRef.Access);
@@ -443,47 +479,58 @@ void ExecutingRenderGraph::RecordPassCb(const RecordedPass& pass, ResourceRegist
         for (const auto& resourceRef : pass.Write) {
             transitions.emplace_back(resourceRef.Handle.id, resourceRef.Access);
         }
-        
+
         for (const auto& [resourceIdx, access] : transitions) {
             auto& resource = resourceRegistry->Resources[resourceIdx];
-            TransitionResource(params.Device, cb, &resource, access, false, "");
+            TransitionResource(params->Device, cb, &resource, access, false, "");
         }
-        
+
         RenderPassApi api{cb, resourceRegistry};
         if (pass.RenderFn) {
             pass.RenderFn(&api);
         }
-        
-        if (auto debugUtils = params.Device->DebugUtils()) {
+
+        // End profiling scope
+        // const_cast<VkProfilerData*>(params->ProfilerData)->EndScope(params->Device->GetRaw(), cb.Raw, vkScope);
+
+        if (auto debugUtils = params->Device->DebugUtils()) {
             debugUtils->CmdEndDebugUtilsLabel(cb.Raw);
         }
-        
-        params.Device->RecordCrashMarker(cb, "end render pass " + pass.Name);
+
+        // params->Device->RecordCrashMarker(cb, "end render pass " + pass.Name);
     } catch (const std::exception& e) {
         throw std::runtime_error("Pass " + pass.Name + " failed to render: " + std::string(e.what()));
     }
 }
 
-void ExecutingRenderGraph::TransitionResource(const Device* device, const CommandBuffer& cb, RegistryResource* resource, const PassResourceAccessType& access, bool debug, const std::string& dbgStr) {
-    if (RGAllowPassOverlap && resource->AccessType == access.AccessType && 
+void ExecutingRenderGraph::TransitionResource(Device* device, const CommandBuffer& cb, RegistryResource* resource, const PassResourceAccessType& access, bool debug, [[maybe_unused]] const std::string& dbgStr) {
+    if (RGAllowPassOverlap && resource->AccessType == access.AccessType &&
         access.SyncType == PassResourceAccessSyncType::SkipSyncIfSameAccessType) {
         return;
     }
-    
+
     if (debug) {
-        // Log transition
+        // Log transition for debugging - commented out due to fmt compilation issues
+        // spdlog::info("\t{}: {:?} -> {:?}", dbgStr,
+        //     static_cast<int>(resource->AccessType),
+        //     static_cast<int>(access.AccessType));
     }
-    
-    if (std::holds_alternative<AnyRenderResource::OwnedImage>(resource->Resource) || 
+
+    if (std::holds_alternative<AnyRenderResource::OwnedImage>(resource->Resource) ||
         std::holds_alternative<AnyRenderResource::ImportedImage>(resource->Resource)) {
-        
+
         std::shared_ptr<Image> image;
         if (std::holds_alternative<AnyRenderResource::OwnedImage>(resource->Resource)) {
-            image = std::get<AnyRenderResource::OwnedImage>(resource->Resource);
+            image = std::get<AnyRenderResource::OwnedImage>(resource->Resource).resource;
         } else {
-            image = std::get<AnyRenderResource::ImportedImage>(resource->Resource);
+            image = std::get<AnyRenderResource::ImportedImage>(resource->Resource).resource;
         }
-        
+
+        if (debug) {
+            // Can't use fmt on ImageDesc without a formatter
+            // spdlog::info("\t(image {:?})", image->desc);
+        }
+
         auto aspectMask = vk_sync::image_aspect_mask_from_access_type_and_format(
             access.AccessType, image->desc.format);
 
@@ -492,7 +539,7 @@ void ExecutingRenderGraph::TransitionResource(const Device* device, const Comman
         }
 
         vk_sync::record_image_barrier(
-            device->Raw,
+            device->GetRaw(),
             cb.Raw,
             vk_sync::ImageBarrier{
                 image->Raw,
@@ -508,86 +555,230 @@ void ExecutingRenderGraph::TransitionResource(const Device* device, const Comman
 
         std::shared_ptr<Buffer> buffer;
         if (std::holds_alternative<AnyRenderResource::OwnedBuffer>(resource->Resource)) {
-            buffer = std::get<AnyRenderResource::OwnedBuffer>(resource->Resource);
+            buffer = std::get<AnyRenderResource::OwnedBuffer>(resource->Resource).resource;
         } else {
-            buffer = std::get<AnyRenderResource::ImportedBuffer>(resource->Resource);
+            buffer = std::get<AnyRenderResource::ImportedBuffer>(resource->Resource).resource;
         }
 
+        if (debug) {
+            // Can't use fmt on BufferDesc without a formatter
+            // spdlog::info("\t(buffer {:?})", buffer->desc);
+        }
+
+        vk_sync::BufferBarrier barrier;
+        barrier.prev_access = resource->AccessType;
+        barrier.next_access = access.AccessType;
+        barrier.src_queue_family_index = device->GetUniversalQueue().Family.index;
+        barrier.dst_queue_family_index = device->GetUniversalQueue().Family.index;
+        barrier.buffer = buffer->Raw;
+        barrier.offset = 0;
+        barrier.size = buffer->desc.size;
+
         vk_sync::cmd::pipeline_barrier(
-            device->Raw,
+            device->GetRaw(),
             cb.Raw,
             std::nullopt,
-            std::vector<vk_sync::BufferBarrier>{
-                vk_sync::BufferBarrier{
-                    {resource->AccessType},
-                    {access.AccessType},
-                    device->UniversalQueue.Family.Index,
-                    device->UniversalQueue.Family.Index,
-                    buffer->Raw,
-                    0,
-                    buffer->desc.size
-                }
-            },
+            std::vector<vk_sync::BufferBarrier>{barrier},
             {}
         );
-        
+
         resource->AccessType = access.AccessType;
     } else if (std::holds_alternative<AnyRenderResource::ImportedRayTracingAcceleration>(resource->Resource)) {
+        if (debug) {
+            spdlog::info("\t(bvh)");
+        }
+        // TODO: Implement proper global barrier for ray tracing acceleration structures
         resource->AccessType = access.AccessType;
     }
+}
+
+// Helper function for global barriers (currently unused but kept for compatibility)
+void GlobalBarrier(Device* device, const CommandBuffer& cb,
+                   const std::vector<vk_sync::AccessType>& previousAccesses,
+                   const std::vector<vk_sync::AccessType>& nextAccesses) {
+    vk_sync::GlobalBarrier globalBarrier{previousAccesses, nextAccesses};
+    vk_sync::cmd::pipeline_barrier(
+        device->GetRaw(),
+        cb.Raw,
+        std::optional<vk_sync::GlobalBarrier>(globalBarrier),
+        std::vector<vk_sync::BufferBarrier>{},
+        std::vector<vk_sync::ImageBarrier>{}
+    );
 }
 
 RetiredRenderGraph::RetiredRenderGraph(std::vector<RegistryResource>&& resources)
     : Resources(std::move(resources)) {}
 
+template<typename Res>
+std::pair<const Res*, vk_sync::AccessType> RetiredRenderGraph::ExportedResource(const ExportedHandle<Res>& handle) const {
+    const auto& regResource = Resources[handle.id];
+    return std::make_pair(
+        Res::BorrowResource(regResource.Resource),
+        regResource.AccessType
+    );
+}
+
+// Explicit template instantiations
+template std::pair<const Image*, vk_sync::AccessType> RetiredRenderGraph::ExportedResource<Image>(const ExportedHandle<Image>&) const;
+template std::pair<const Buffer*, vk_sync::AccessType> RetiredRenderGraph::ExportedResource<Buffer>(const ExportedHandle<Buffer>&) const;
+
 void RetiredRenderGraph::ReleaseResources(TransientResourceCache* transientResourceCache) {
     for (auto& resource : Resources) {
         if (std::holds_alternative<AnyRenderResource::OwnedImage>(resource.Resource)) {
-            transientResourceCache->InsertImage(std::get<AnyRenderResource::OwnedImage>(resource.Resource));
+            transientResourceCache->InsertImage(std::get<AnyRenderResource::OwnedImage>(resource.Resource).resource);
         } else if (std::holds_alternative<AnyRenderResource::OwnedBuffer>(resource.Resource)) {
-            transientResourceCache->InsertBuffer(std::get<AnyRenderResource::OwnedBuffer>(resource.Resource));
+            transientResourceCache->InsertBuffer(std::get<AnyRenderResource::OwnedBuffer>(resource.Resource).resource);
         } else if (std::holds_alternative<AnyRenderResource::Pending>(resource.Resource)) {
             throw std::runtime_error("RetiredRenderGraph::release_resources called while a resource was in Pending state");
         }
     }
 }
 
-vk::ImageUsageFlags ImageAccessMaskToUsageFlags(vk::AccessFlags accessMask) {
-    switch (accessMask) {
-        case vk::AccessFlagBits::eShaderRead:
-            return vk::ImageUsageFlagBits::eSampled;
-        case vk::AccessFlagBits::eShaderWrite:
-            return vk::ImageUsageFlagBits::eStorage;
-        case vk::AccessFlagBits::eColorAttachmentRead:
-        case vk::AccessFlagBits::eColorAttachmentWrite:
-            return vk::ImageUsageFlagBits::eColorAttachment;
-        case vk::AccessFlagBits::eDepthStencilAttachmentRead:
-        case vk::AccessFlagBits::eDepthStencilAttachmentWrite:
-            return vk::ImageUsageFlagBits::eDepthStencilAttachment;
-        case vk::AccessFlagBits::eTransferRead:
-            return vk::ImageUsageFlagBits::eTransferSrc;
-        case vk::AccessFlagBits::eTransferWrite:
-            return vk::ImageUsageFlagBits::eTransferDst;
-        default:
-            if (accessMask == (vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite)) {
-                return vk::ImageUsageFlagBits::eStorage;
-            }
-            throw std::runtime_error("Invalid image access mask");
+vk::ImageUsageFlags ImageAccessMaskToUsageFlags(VkAccessFlags accessMask) {
+    // Convert VkAccessFlags to uint32_t for comparison
+    uint32_t mask = static_cast<uint32_t>(accessMask);
+
+    if (mask & VK_ACCESS_SHADER_READ_BIT) {
+        return vk::ImageUsageFlagBits::eSampled;
     }
+    if (mask & VK_ACCESS_SHADER_WRITE_BIT) {
+        return vk::ImageUsageFlagBits::eStorage;
+    }
+    if (mask & (VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)) {
+        return vk::ImageUsageFlagBits::eColorAttachment;
+    }
+    if (mask & (VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)) {
+        return vk::ImageUsageFlagBits::eDepthStencilAttachment;
+    }
+    if (mask & VK_ACCESS_TRANSFER_READ_BIT) {
+        return vk::ImageUsageFlagBits::eTransferSrc;
+    }
+    if (mask & VK_ACCESS_TRANSFER_WRITE_BIT) {
+        return vk::ImageUsageFlagBits::eTransferDst;
+    }
+    if (mask & (VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT)) {
+        return vk::ImageUsageFlagBits::eStorage;
+    }
+
+    throw std::runtime_error("Invalid image access mask");
 }
 
-vk::BufferUsageFlags BufferAccessMaskToUsageFlags(vk::AccessFlags accessMask) {
-    switch (accessMask) {
-        case vk::AccessFlagBits::eIndirectCommandRead:
-            return vk::BufferUsageFlagBits::eIndirectBuffer;
-        case vk::AccessFlagBits::eIndexRead:
-            return vk::BufferUsageFlagBits::eIndexBuffer;
-        case vk::AccessFlagBits::eVertexAttributeRead:
-            return vk::BufferUsageFlagBits::eUniformTexelBuffer;
-        case vk::AccessFlagBits::eUniformRead:
-            return vk::BufferUsageFlagBits::eUniformBuffer;
-        case vk::AccessFlagBits::eShaderRead:
-            return vk::BufferUsageFlagBits::eUniformTexelBuffer;
-        case vk::AccessFlagBits::eShaderWrite:
-            return vk::BufferUsageFlagBits::eStorageBuffer;
-        case
+vk::BufferUsageFlags BufferAccessMaskToUsageFlags(VkAccessFlags accessMask) {
+    // Convert VkAccessFlags to uint32_t for comparison
+    uint32_t mask = static_cast<uint32_t>(accessMask);
+
+    if (mask & VK_ACCESS_INDIRECT_COMMAND_READ_BIT) {
+        return vk::BufferUsageFlagBits::eIndirectBuffer;
+    }
+    if (mask & VK_ACCESS_INDEX_READ_BIT) {
+        return vk::BufferUsageFlagBits::eIndexBuffer;
+    }
+    if (mask & VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT) {
+        return vk::BufferUsageFlagBits::eVertexBuffer;
+    }
+    if (mask & VK_ACCESS_UNIFORM_READ_BIT) {
+        return vk::BufferUsageFlagBits::eUniformBuffer;
+    }
+    if (mask & VK_ACCESS_SHADER_READ_BIT) {
+        return vk::BufferUsageFlagBits::eStorageBuffer;
+    }
+    if (mask & VK_ACCESS_SHADER_WRITE_BIT) {
+        return vk::BufferUsageFlagBits::eStorageBuffer;
+    }
+    if (mask & VK_ACCESS_TRANSFER_READ_BIT) {
+        return vk::BufferUsageFlagBits::eTransferSrc;
+    }
+    if (mask & VK_ACCESS_TRANSFER_WRITE_BIT) {
+        return vk::BufferUsageFlagBits::eTransferDst;
+    }
+    if (mask & (VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT)) {
+        return vk::BufferUsageFlagBits::eStorageBuffer;
+    }
+
+    throw std::runtime_error("Invalid buffer access mask");
+}
+
+bool RGAllowPassOverlap = true;
+
+// Template implementations for Import/Export
+
+// Import for Image
+template<>
+Handle<Image> RenderGraph::Import<Image>(const std::shared_ptr<Image>& resource, vk_sync::AccessType accessTypeAtImportTime) {
+    GraphRawResourceHandle res;
+    res.id = static_cast<uint32_t>(Resources.size());
+    res.version = 0;
+
+    ImageDesc desc = resource->desc;
+
+    Resources.push_back(GraphResourceInfo{GraphResourceImportInfo::Image(resource, accessTypeAtImportTime)});
+
+    return Handle<Image>{res, desc};
+}
+
+// Import for Buffer
+template<>
+Handle<Buffer> RenderGraph::Import<Buffer>(const std::shared_ptr<Buffer>& resource, vk_sync::AccessType accessTypeAtImportTime) {
+    GraphRawResourceHandle res;
+    res.id = static_cast<uint32_t>(Resources.size());
+    res.version = 0;
+
+    BufferDesc desc = resource->desc;
+
+    Resources.push_back(GraphResourceInfo{GraphResourceImportInfo::Buffer(resource, accessTypeAtImportTime)});
+
+    return Handle<Buffer>{res, desc};
+}
+
+// Import for RayTracingAcceleration
+template<>
+Handle<RayTracingAcceleration> RenderGraph::Import<RayTracingAcceleration>(const std::shared_ptr<RayTracingAcceleration>& resource, vk_sync::AccessType accessTypeAtImportTime) {
+    GraphRawResourceHandle res;
+    res.id = static_cast<uint32_t>(Resources.size());
+    res.version = 0;
+
+    RayTracingAccelerationDesc desc;
+
+    Resources.push_back(GraphResourceInfo{GraphResourceImportInfo::RayTracingAcceleration(resource, accessTypeAtImportTime)});
+
+    return Handle<RayTracingAcceleration>{res, desc};
+}
+
+// Export for Image
+template<>
+ExportedHandle<Image> RenderGraph::Export<Image>(const Handle<Image>& resource, vk_sync::AccessType accessType) {
+    ExportedHandle<Image> res;
+    res.id = resource.raw.id;
+
+    ExportedResources.push_back(std::make_pair(ExportableGraphResource(resource), accessType));
+
+    return res;
+}
+
+// Export for Buffer
+template<>
+ExportedHandle<Buffer> RenderGraph::Export<Buffer>(const Handle<Buffer>& resource, vk_sync::AccessType accessType) {
+    ExportedHandle<Buffer> res;
+    res.id = resource.raw.id;
+
+    ExportedResources.push_back(std::make_pair(ExportableGraphResource(resource), accessType));
+
+    return res;
+}
+
+// Export for RayTracingAcceleration
+template<>
+ExportedHandle<RayTracingAcceleration> RenderGraph::Export<RayTracingAcceleration>([[maybe_unused]] const Handle<RayTracingAcceleration>& resource, [[maybe_unused]] vk_sync::AccessType accessType) {
+    // TODO: implement
+    throw std::runtime_error("Export for RayTracingAcceleration not yet implemented");
+}
+
+// Template implementation for Create
+template<typename Desc>
+Handle<typename Desc::Resource> RenderGraph::Create(const Desc& desc) {
+    GraphRawResourceHandle raw = CreateRawResource(GraphResourceCreateInfo{GraphResourceDesc(desc)});
+
+    return Handle<typename Desc::Resource>{raw, desc};
+}
+
+}  // namespace tekki::render_graph

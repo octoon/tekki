@@ -8,8 +8,7 @@
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/backend/vulkan/shader.h"
-#include "tekki/render_graph/render_graph.h"
-#include "tekki/render_graph/simple_render_pass.h"
+#include "tekki/render_graph/RenderGraph.h"
 #include "gbuffer_depth.h"
 
 namespace tekki::renderer::renderers {

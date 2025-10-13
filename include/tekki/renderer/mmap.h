@@ -3,6 +3,9 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include <glm/glm.hpp>
@@ -54,9 +57,5 @@ public:
         return reinterpret_cast<const T*>(data.data());
     }
 };
-
-// Static member definitions
-std::unordered_map<std::filesystem::path, std::vector<uint8_t>> AssetMmapManager::AssetMmaps;
-std::mutex AssetMmapManager::AssetMmapsMutex;
 
 } // namespace tekki::renderer

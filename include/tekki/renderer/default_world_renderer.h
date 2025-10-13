@@ -8,12 +8,12 @@
 #include <vulkan/vulkan.h>
 #include "tekki/core/result.h"
 #include "tekki/asset/Image.h"
-#include "tekki/mesh/TexParams.h"
-#include "tekki/mesh/GpuImage.h"
-#include "tekki/renderer/WorldRenderer.h"
-#include "tekki/renderer/LutRenderers.h"
-#include "tekki/backend/RenderBackend.h"
-#include "tekki/cache/LazyCache.h"
+#include "tekki/asset/TexParams.h"
+#include "tekki/asset/GpuImage.h"
+#include "tekki/renderer/world_renderer.h"
+#include "tekki/renderer/lut_renderers.h"
+#include "tekki/backend/render_backend.h"
+#include "tekki/cache/lazy_cache.h"
 
 namespace tekki::renderer {
 

@@ -24,6 +24,14 @@ public:
     uint64_t id() const { return raw.id; }
     bool is_valid() const { return raw.is_valid(); }
 
+    // Accessor for desc (matching Rust API)
+    const typename T::Desc& Desc() const { return desc; }
+    typename T::Desc& Desc() { return desc; }
+
+    // Pointer-like access for convenience (returns desc)
+    const typename T::Desc* operator->() const { return &desc; }
+    typename T::Desc* operator->() { return &desc; }
+
     bool operator==(const Handle& other) const { return raw == other.raw; }
     bool operator!=(const Handle& other) const { return !(raw == other.raw); }
     bool operator<(const Handle& other) const { return raw.id < other.raw.id; }

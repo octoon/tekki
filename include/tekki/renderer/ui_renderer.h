@@ -5,12 +5,16 @@
 #include <vector>
 #include "tekki/core/result.h"
 #include "tekki/backend/vulkan/image.h"
-#include "tekki/rg/temporal_render_graph.h"
-#include "tekki/rg/render_graph.h"
-#include "tekki/rg/imageops.h"
+#include "tekki/render_graph/temporal.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/imageops.h"
 #include <vulkan/vulkan.h>
 
 namespace tekki::renderer {
+
+// Forward declarations
+namespace rg = tekki::render_graph;
+using Image = tekki::backend::vulkan::Image;
 
 class UiRenderer {
 public:

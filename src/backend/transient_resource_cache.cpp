@@ -23,7 +23,7 @@ void TransientResourceCache::InsertImage(std::shared_ptr<vulkan::Image> image) {
         if (!image) {
             throw std::invalid_argument("Cannot insert null image");
         }
-        auto& entry = images[image->Desc];
+        auto& entry = images[image->desc];
         entry.push_back(image);
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to insert image into cache: " + std::string(e.what()));
@@ -49,7 +49,7 @@ void TransientResourceCache::InsertBuffer(std::shared_ptr<vulkan::Buffer> buffer
         if (!buffer) {
             throw std::invalid_argument("Cannot insert null buffer");
         }
-        auto& entry = buffers[buffer->Desc];
+        auto& entry = buffers[buffer->desc];
         entry.push_back(buffer);
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to insert buffer into cache: " + std::string(e.what()));

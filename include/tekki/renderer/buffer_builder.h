@@ -6,8 +6,14 @@
 #include <cassert>
 #include <stdexcept>
 #include <glm/glm.hpp>
+#include "tekki/backend/vulkan/device.h"
+#include "tekki/backend/vulkan/buffer.h"
 
 namespace tekki::renderer {
+
+// Use full types from backend
+using Device = tekki::backend::vulkan::Device;
+using Buffer = tekki::backend::vulkan::Buffer;
 
 class BufferDataSource {
 public:
@@ -89,7 +95,7 @@ public:
         return AppendInternal(source);
     }
 
-    void Upload(class Device* device, class Buffer* target, uint64_t targetOffset) {
+    void Upload(std::shared_ptr<Device> device, Buffer* target, uint64_t targetOffset) {
         if (!device || !target) {
             throw std::invalid_argument("Device and target buffer must not be null");
         }
@@ -99,7 +105,7 @@ public:
             totalSize += upload.Source->GetSize();
         }
 
-        if (totalSize + targetOffset > target->GetSize()) {
+        if (totalSize + targetOffset > target->desc.Size) {
             throw std::runtime_error("Buffer upload would exceed target buffer size");
         }
 
@@ -111,42 +117,50 @@ public:
         };
 
         std::vector<UploadChunk> chunks;
-        
+
         for (size_t i = 0; i < m_pendingUploads.size(); ++i) {
             const auto& pending = m_pendingUploads[i];
             size_t byteCount = pending.Source->GetSize();
             size_t chunkCount = (byteCount + STAGING_BYTES - 1) / STAGING_BYTES;
-            
+
             for (size_t chunk = 0; chunk < chunkCount; ++chunk) {
                 size_t start = chunk * STAGING_BYTES;
                 size_t end = std::min((chunk + 1) * STAGING_BYTES, byteCount);
-                chunks.push_back({i, glm::uvec2(start, end)});
+                chunks.push_back({i, glm::uvec2(static_cast<uint32_t>(start), static_cast<uint32_t>(end))});
             }
         }
 
         for (const auto& chunk : chunks) {
             const auto& pending = m_pendingUploads[chunk.PendingIndex];
             size_t chunkSize = chunk.SourceRange.y - chunk.SourceRange.x;
-            
-            auto stagingBuffer = device->CreateStagingBuffer(STAGING_BYTES);
-            if (!stagingBuffer) {
-                throw std::runtime_error("Failed to create staging buffer");
-            }
 
+            // Create staging buffer
+            tekki::backend::vulkan::BufferDesc stagingDesc;
+            stagingDesc.Size = chunkSize;
+            stagingDesc.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            stagingDesc.MemoryLocation = tekki::MemoryLocation::CpuToGpu;
+
+            auto stagingBuffer = device->CreateBuffer(stagingDesc, "buffer upload staging");
+
+            // Copy data to staging buffer
             const uint8_t* sourceData = pending.Source->AsBytes() + chunk.SourceRange.x;
-            stagingBuffer->CopyFrom(sourceData, chunkSize, 0);
-
-            try {
-                device->CopyBuffer(
-                    stagingBuffer.get(),
-                    target,
-                    0,
-                    targetOffset + pending.Offset + chunk.SourceRange.x,
-                    chunkSize
-                );
-            } catch (const std::exception& e) {
-                throw std::runtime_error(std::string("Buffer copy failed: ") + e.what());
+            auto mappedSlice = stagingBuffer.Allocation.MappedSlice();
+            if (!mappedSlice) {
+                throw std::runtime_error("Failed to map staging buffer");
             }
+            std::memcpy(mappedSlice, sourceData, chunkSize);
+
+            // Copy from staging to target buffer
+            device->WithSetupCb([&](VkCommandBuffer cb) {
+                VkBufferCopy copyRegion{};
+                copyRegion.srcOffset = 0;
+                copyRegion.dstOffset = targetOffset + pending.Offset + chunk.SourceRange.x;
+                copyRegion.size = chunkSize;
+                vkCmdCopyBuffer(cb, stagingBuffer.Raw, target->Raw, 1, &copyRegion);
+            });
+
+            // Clean up staging buffer
+            device->ImmediateDestroyBuffer(std::move(stagingBuffer));
         }
     }
 

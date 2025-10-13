@@ -8,7 +8,7 @@
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/render_graph/lib.h"
 #include "world_frame_desc.h"
-#include "renderers/deferred/light_gbuffer.h"
+#include "renderers/deferred.h"
 #include "renderers/motion_blur/motion_blur.h"
 #include "renderers/raster_meshes/raster_meshes.h"
 #include "renderers/reference/reference_path_trace.h"

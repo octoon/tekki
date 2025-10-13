@@ -49,15 +49,63 @@ struct BufferDesc {
 };
 
 struct Buffer {
+    using Desc = BufferDesc;  // Type alias for Handle<Buffer> template
+
     VkBuffer Raw;
-    BufferDesc Desc;
+    BufferDesc desc;
     tekki::Allocation Allocation;
+
+    // Default constructor
+    Buffer() : Raw(VK_NULL_HANDLE), desc(), Allocation() {}
+
+    // Constructor
+    Buffer(VkBuffer raw, const BufferDesc& d, tekki::Allocation allocation)
+        : Raw(raw), desc(d), Allocation(std::move(allocation)) {}
+
+    // Move constructor
+    Buffer(Buffer&& other) noexcept
+        : Raw(other.Raw), desc(other.desc), Allocation(std::move(other.Allocation)) {
+        other.Raw = VK_NULL_HANDLE;
+    }
+
+    // Move assignment
+    Buffer& operator=(Buffer&& other) noexcept {
+        if (this != &other) {
+            Raw = other.Raw;
+            desc = other.desc;
+            Allocation = std::move(other.Allocation);
+            other.Raw = VK_NULL_HANDLE;
+        }
+        return *this;
+    }
+
+    // Delete copy operations (buffers should not be copied)
+    Buffer(const Buffer&) = delete;
+    Buffer& operator=(const Buffer&) = delete;
 
     uint64_t DeviceAddress(VkDevice device) const {
         VkBufferDeviceAddressInfo addressInfo = {};
         addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
         addressInfo.buffer = Raw;
         return vkGetBufferDeviceAddress(device, &addressInfo);
+    }
+
+    // Get mapped memory slice (for CPU-accessible buffers)
+    std::vector<uint8_t> GetMappedSlice() const {
+        const uint8_t* ptr = Allocation.MappedSlice();
+        if (ptr) {
+            return std::vector<uint8_t>(ptr, ptr + desc.Size);
+        }
+        return std::vector<uint8_t>();
+    }
+
+    // Get mutable mapped memory pointer
+    uint8_t* GetMappedPtr() {
+        return Allocation.MappedSlice();
+    }
+
+    const uint8_t* GetMappedPtr() const {
+        return Allocation.MappedSlice();
     }
 };
 

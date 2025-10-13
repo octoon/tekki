@@ -121,9 +121,9 @@ glm::u32vec2 ImageDesc::GetExtent2d() const {
     return glm::u32vec2(Extent.x, Extent.y);
 }
 
-Image::Image(VkImage raw, const ImageDesc& desc) 
+Image::Image(VkImage raw, const ImageDesc& desc)
     : Raw(raw)
-    , Desc(desc) {
+    , desc(desc) {
 }
 
 Image::~Image() {
@@ -133,33 +133,33 @@ Image::~Image() {
     }
 }
 
-VkImageView Image::GetView(Device& device, const ImageViewDesc& desc) {
+VkImageView Image::GetView(Device& device, const ImageViewDesc& viewDesc) {
     std::lock_guard<std::mutex> lock(viewsMutex);
-    
-    auto it = views.find(desc);
+
+    auto it = views.find(viewDesc);
     if (it != views.end()) {
         return it->second;
     }
-    
+
     try {
-        VkImageViewCreateInfo createInfo = GetViewDesc(desc);
+        VkImageViewCreateInfo createInfo = GetViewDesc(viewDesc);
         createInfo.image = Raw;
-        
+
         VkImageView view;
         VkResult result = vkCreateImageView(device.GetRaw(), &createInfo, nullptr, &view);
         if (result != VK_SUCCESS) {
             throw std::runtime_error("Failed to create image view");
         }
-        
-        views[desc] = view;
+
+        views[viewDesc] = view;
         return view;
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("Failed to create image view: ") + e.what());
     }
 }
 
-VkImageViewCreateInfo Image::GetViewDesc(const ImageViewDesc& desc) const {
-    return CreateViewDescImpl(desc, Desc);
+VkImageViewCreateInfo Image::GetViewDesc(const ImageViewDesc& viewDesc) const {
+    return CreateViewDescImpl(viewDesc, this->desc);
 }
 
 VkImageViewCreateInfo Image::CreateViewDescImpl(const ImageViewDesc& desc, const ImageDesc& imageDesc) {
