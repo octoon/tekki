@@ -277,33 +277,33 @@ NVSDK_NGX_Result NgxVulkanEvaluateDlssExt(VkCommandBuffer commandBuffer,
         );
 
         return NVSDK_NGX_VULKAN_EvaluateFeature_C(commandBuffer, handle, parameters, nullptr);
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return NVSDK_NGX_Result_NVSDK_NGX_Result_Fail;
     }
 }
 
 NVSDK_NGX_Resource_VK ImageToNgx(tekki::render_graph::RenderPassApi& api,
-                                tekki::render_graph::Ref<tekki::backend::vulkan::Image> imageRef,
+                                tekki::render_graph::Ref<tekki::backend::vulkan::Image, tekki::render_graph::GpuSrv> imageRef,
                                 tekki::backend::vulkan::ImageViewDesc viewDesc) {
-    auto device = api.device();
-    auto image = api.resources().image(imageRef);
+    auto& device = api.Device();
+    auto& image = api.Resources().image(imageRef);
 
-    auto view = image->view(device, viewDesc);
-    auto view_desc = image->view_desc(viewDesc);
+    auto view = image.GetView(const_cast<tekki::backend::vulkan::Device&>(device), viewDesc);
+    auto view_desc = image.GetViewDesc(viewDesc);
 
     NVSDK_NGX_Resource_VK resource{};
-    resource.Resource.ImageViewInfo.ImageView = view->raw();
-    resource.Resource.ImageViewInfo.Image = image->raw();
+    resource.Resource.ImageViewInfo.ImageView = view;
+    resource.Resource.ImageViewInfo.Image = image.Raw;
     resource.Resource.ImageViewInfo.SubresourceRange = {
-        view_desc.subresource_range.aspectMask,
-        view_desc.subresource_range.baseMipLevel,
-        view_desc.subresource_range.levelCount,
-        view_desc.subresource_range.baseArrayLayer,
-        view_desc.subresource_range.layerCount
+        view_desc.subresourceRange.aspectMask,
+        view_desc.subresourceRange.baseMipLevel,
+        view_desc.subresourceRange.levelCount,
+        0, // base array layer
+        1  // layer count
     };
-    resource.Resource.ImageViewInfo.Format = static_cast<VkFormat>(view_desc.format);
-    resource.Resource.ImageViewInfo.Width = image->desc().extent[0];
-    resource.Resource.ImageViewInfo.Height = image->desc().extent[1];
+    resource.Resource.ImageViewInfo.Format = view_desc.format != VK_FORMAT_UNDEFINED ? view_desc.format : image.desc.Format;
+    resource.Resource.ImageViewInfo.Width = image.desc.Extent.x;
+    resource.Resource.ImageViewInfo.Height = image.desc.Extent.y;
     resource.Type = NVSDK_NGX_Resource_VK_Type_NVSDK_NGX_RESOURCE_VK_TYPE_VK_IMAGEVIEW;
     resource.ReadWrite = false;
 
@@ -380,17 +380,22 @@ DlssRenderer::DlssRenderer(std::shared_ptr<tekki::backend::RenderBackend> backen
     ngxCommonInfo.LoggingInfo.MinimumLoggingLevel = NVSDK_NGX_Logging_Level_NVSDK_NGX_LOGGING_LEVEL_OFF;
     ngxCommonInfo.LoggingInfo.DisableOtherLoggingSinks = false;
 
-    auto vulkanDevice = std::dynamic_pointer_cast<tekki::backend::vulkan::Device>(backend->device());
+    auto vulkanDevice = std::dynamic_pointer_cast<tekki::backend::vulkan::Device>(backend->Device);
     if (!vulkanDevice) {
         throw std::runtime_error("Vulkan device required for DLSS");
+    }
+
+    auto physicalDevice = vulkanDevice->PhysicalDevice();
+    if (!physicalDevice) {
+        throw std::runtime_error("Physical device not available");
     }
 
     DlssRenderer::CheckNgxResult(NVSDK_NGX_VULKAN_Init(
         0xcafebabe,
         L".",
-        vulkanDevice->physical_device()->instance()->raw(),
-        vulkanDevice->physical_device()->raw(),
-        vulkanDevice->raw(),
+        physicalDevice->instance->GetRaw(),
+        physicalDevice->raw,
+        vulkanDevice->GetRaw(),
         &ngxCommonInfo,
         NVSDK_NGX_Version_NVSDK_NGX_Version_API
     ));
@@ -502,10 +507,10 @@ DlssRenderer::DlssRenderer(std::shared_ptr<tekki::backend::RenderBackend> backen
     // Create DLSS feature using a setup command buffer
     // TODO: This needs to be called with a valid command buffer from the backend
     // For now, we'll need to add a method to the backend to execute setup commands
-    auto vulkanDevice = std::dynamic_pointer_cast<tekki::backend::vulkan::Device>(backend->device());
+    auto vulkanDevice2 = std::dynamic_pointer_cast<tekki::backend::vulkan::Device>(backend->Device);
 
     // Execute with setup callback
-    backend->device()->with_setup_cb([&](VkCommandBuffer cb) {
+    vulkanDevice2->WithSetupCb([&](VkCommandBuffer cb) {
         DlssRenderer::CheckNgxResult(NVSDK_NGX_VULKAN_CreateFeature(
             cb,
             NVSDK_NGX_Feature_NVSDK_NGX_Feature_SuperSampling,

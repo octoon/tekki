@@ -10,9 +10,8 @@
 #include "tekki/backend/vulkan/device.h"
 #include "tekki/render_graph/graph.h"
 #include "tekki/render_graph/resource.h"
-#include "tekki/render_graph/Buffer.h"
+#include "tekki/render_graph/buffer.h"
 #include "tekki/render_graph/Image.h"
-#include "tekki/render_graph/desc_convert.h"
 
 namespace tekki::render_graph {
 
@@ -51,13 +50,10 @@ Handle<Image> TemporalRenderGraph::GetOrCreateTemporalImage(const TemporalResour
         }
     } else {
         try {
-            auto vkDesc = ConvertImageDesc(desc);
-            std::shared_ptr<tekki::backend::vulkan::Image> vkImage = device_->CreateImage(vkDesc, std::vector<uint8_t>{});
+            std::shared_ptr<tekki::backend::vulkan::Image> vkImage = device_->CreateImage(desc, std::vector<uint8_t>{});
 
             // Create render_graph::Image wrapper
-            std::shared_ptr<Image> resource = std::make_shared<Image>(desc);
-            resource->raw = vkImage->Raw;
-            resource->Raw = vkImage->Raw;
+            std::shared_ptr<Image> resource = std::make_shared<Image>(vkImage->Raw, desc);
 
             auto handle = rg_->Import(resource, vk_sync::AccessType::Nothing);
 
@@ -103,13 +99,10 @@ Handle<Buffer> TemporalRenderGraph::GetOrCreateTemporalBuffer(const TemporalReso
     } else {
         try {
             std::vector<uint8_t> zero_init(desc.size, 0);
-            auto vkDesc = ConvertBufferDesc(desc);
-            tekki::backend::vulkan::Buffer vkBuffer = device_->CreateBuffer(vkDesc, "temporal buffer", zero_init);
+            tekki::backend::vulkan::Buffer vkBuffer = device_->CreateBuffer(desc, "temporal buffer", zero_init);
 
             // Create render_graph::Buffer wrapper
-            std::shared_ptr<Buffer> resource = std::make_shared<Buffer>(desc);
-            resource->raw = vkBuffer.Raw;
-            resource->Raw = vkBuffer.Raw;
+            std::shared_ptr<Buffer> resource = std::make_shared<Buffer>(vkBuffer.Raw, desc, std::move(vkBuffer.Allocation));
 
             auto handle = rg_->Import(resource, vk_sync::AccessType::Nothing);
 

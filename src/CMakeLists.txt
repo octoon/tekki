@@ -184,7 +184,6 @@ add_library(tekki-renderer STATIC
     renderer/renderers/rtdgi.cpp
     renderer/renderers/rtr.cpp
     renderer/renderers/shadow_denoise.cpp
-    renderer/renderers/shadows.cpp
     renderer/renderers/sky.cpp
     renderer/renderers/ssgi.cpp
     renderer/renderers/taa.cpp

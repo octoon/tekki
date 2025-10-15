@@ -8,48 +8,54 @@
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/backend/vulkan/shader.h"
-#include "tekki/render_graph/RenderGraph.h"
-#include "gbuffer_depth.h"
+#include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/Image.h"
+#include "tekki/renderer/renderers/gbuffer_depth.h"
+#include "tekki/render_graph/simple_render_pass.h"
 
 namespace tekki::renderer::renderers {
 
-class Shadows {
-public:
-    /**
-     * Trace sun shadow mask
-     * @param renderGraph The render graph
-     * @param gbufferDepth The G-buffer depth
-     * @param tlas The ray tracing acceleration structure
-     * @param bindlessDescriptorSet The bindless descriptor set
-     * @return Handle to the output image
-     */
-    static std::shared_ptr<tekki::backend::vulkan::Image> TraceSunShadowMask(
-        std::shared_ptr<tekki::render_graph::RenderGraph> renderGraph,
-        std::shared_ptr<GbufferDepth> gbufferDepth,
-        std::shared_ptr<tekki::backend::vulkan::RayTracingAcceleration> tlas,
-        VkDescriptorSet bindlessDescriptorSet
-    ) {
-        auto outputImage = renderGraph->Create(gbufferDepth->Depth->GetDesc().Format(VK_FORMAT_R8_UNORM));
+/**
+ * Trace sun shadow mask
+ * @param rg The render graph
+ * @param gbufferDepth The G-buffer depth
+ * @param tlas The ray tracing acceleration structure
+ * @param bindlessDescriptorSet The bindless descriptor set
+ * @return Handle to the output image
+ */
+inline tekki::render_graph::Handle<tekki::backend::vulkan::Image> TraceSunShadowMask(
+    tekki::render_graph::RenderGraph& rg,
+    const GbufferDepth& gbufferDepth,
+    const std::shared_ptr<tekki::backend::vulkan::RayTracingAcceleration>& tlas,
+    VkDescriptorSet bindlessDescriptorSet
+) {
+    // Create output image with same dimensions as depth buffer but R8_UNORM format
+    auto outputImgDesc = gbufferDepth.depth.desc;
+    outputImgDesc.Format = VK_FORMAT_R8_UNORM;
+    auto outputImg = rg.Create(outputImgDesc);
 
-        auto renderPass = std::make_shared<tekki::render_graph::SimpleRenderPass>(
-            renderGraph->AddPass("trace shadow mask"),
-            tekki::backend::vulkan::ShaderSource::Hlsl("/shaders/rt/trace_sun_shadow_mask.rgen.hlsl")
-        );
+    // Create ray tracing pass using SimpleRenderPass
+    auto passBuilder = rg.AddPass("trace shadow mask");
+    auto pass = tekki::render_graph::SimpleRenderPass::NewRayTracing(
+        passBuilder,
+        tekki::backend::vulkan::ShaderSource::CreateHlsl("/shaders/rt/trace_sun_shadow_mask.rgen.hlsl"),
+        {
+            // Duplicated because `rt.hlsl` hardcodes miss index to 1
+            tekki::backend::vulkan::ShaderSource::CreateHlsl("/shaders/rt/shadow.rmiss.hlsl"),
+            tekki::backend::vulkan::ShaderSource::CreateHlsl("/shaders/rt/shadow.rmiss.hlsl")
+        },
+        {} // No hit shaders
+    );
 
-        std::vector<tekki::backend::vulkan::ShaderSource> missShaders = {
-            tekki::backend::vulkan::ShaderSource::Hlsl("/shaders/rt/shadow.rmiss.hlsl"),
-            tekki::backend::vulkan::ShaderSource::Hlsl("/shaders/rt/shadow.rmiss.hlsl")
-        };
+    // Bind resources
+    const auto& outputDesc = outputImg.desc;
+    pass.ReadAspect(gbufferDepth.depth, VK_IMAGE_ASPECT_DEPTH_BIT)
+        .Read(gbufferDepth.geometric_normal)
+        .Write(outputImg)
+        .RawDescriptorSet(1, bindlessDescriptorSet)
+        .TraceRays(tlas, glm::u32vec3(outputDesc.Extent.x, outputDesc.Extent.y, outputDesc.Extent.z));
 
-        renderPass->SetRayTracingShaders(missShaders, std::vector<tekki::backend::vulkan::ShaderSource>());
-        renderPass->ReadAspect(gbufferDepth->Depth, VK_IMAGE_ASPECT_DEPTH_BIT);
-        renderPass->Read(gbufferDepth->GeometricNormal);
-        renderPass->Write(outputImage);
-        renderPass->SetRawDescriptorSet(1, bindlessDescriptorSet);
-        renderPass->TraceRays(tlas, outputImage->GetDesc().Extent);
-
-        return outputImage;
-    }
-};
+    return outputImg;
+}
 
 } // namespace tekki::renderer::renderers

@@ -1,12 +1,15 @@
 #include "tekki/renderer/renderers/ssgi.h"
 #include "tekki/renderer/renderers/gbuffer_depth.h"
 #include "tekki/renderer/renderers/ping_pong_temporal_resource.h"
+#include "tekki/render_graph/lib.h"
 #include "tekki/render_graph/simple_render_pass.h"
 #include <glm/glm.hpp>
 
+namespace rg = tekki::render_graph;
+
 namespace tekki::renderer::renderers {
 
-SsgiRenderer::SsgiRenderer() : ssgi_tex("ssgi") {}
+SsgiRenderer::SsgiRenderer() : ssgiTex("ssgi") {}
 
 tekki::render_graph::ReadOnlyHandle<tekki::backend::vulkan::Image> SsgiRenderer::Render(
     tekki::render_graph::TemporalRenderGraph& rg,
@@ -15,52 +18,56 @@ tekki::render_graph::ReadOnlyHandle<tekki::backend::vulkan::Image> SsgiRenderer:
     const tekki::render_graph::Handle<tekki::backend::vulkan::Image>& prevRadiance,
     VkDescriptorSet bindlessDescriptorSet
 ) {
-    auto gbufferDesc = gbufferDepth.gbuffer->Desc();
-    auto halfViewNormalTex = gbufferDepth.HalfViewNormal(rg);
-    auto halfDepthTex = gbufferDepth.HalfDepth(rg);
+    auto gbufferDesc = gbufferDepth.gbuffer.desc;
+    auto halfViewNormalTex = gbufferDepth.half_view_normal(*rg.GetRenderGraph());
+    auto halfDepthTex = gbufferDepth.half_depth(*rg.GetRenderGraph());
 
-    auto ssgiTex = rg.Create(
-        gbufferDesc
-            .Usage(VK_IMAGE_USAGE_FLAG_BITS_MAX_ENUM)
-            .HalfRes()
-            .Format(INTERNAL_TEX_FMT)
+    auto ssgiOutputTex = rg.Create(
+        rg::ImageDesc::New2d(
+            INTERNAL_TEX_FMT,
+            glm::u32vec2(gbufferDesc.Extent.x / 2, gbufferDesc.Extent.y / 2)
+        ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
     );
 
     if (USE_RUST_SHADERS) {
-        SimpleRenderPass::NewComputeRust(rg.AddPass("ssao"), "ssgi::ssgi_cs")
+        auto pass = rg.AddPass("ssao");
+        rg::SimpleRenderPass::NewComputeRust(pass, "ssgi::ssgi_cs")
             .Read(gbufferDepth.gbuffer)
             .Read(halfDepthTex)
             .Read(halfViewNormalTex)
             .Read(prevRadiance)
             .Read(reprojectionMap)
-            .Write(ssgiTex)
-            .Constants(SsgiConstants::DefaultWithSize(
-                gbufferDesc.ExtentInvExtent2D(),
-                ssgiTex->Desc().ExtentInvExtent2D()
-            ))
-            .Dispatch(ssgiTex->Desc().Extent);
-    } else {
-        SimpleRenderPass::NewCompute(rg.AddPass("ssao"), "/shaders/ssgi/ssgi.hlsl")
-            .Read(gbufferDepth.gbuffer)
-            .Read(halfDepthTex)
-            .Read(halfViewNormalTex)
-            .Read(prevRadiance)
-            .Read(reprojectionMap)
-            .Write(ssgiTex)
+            .Write(ssgiOutputTex)
             .Constants(std::make_tuple(
-                gbufferDesc.ExtentInvExtent2D(),
-                ssgiTex->Desc().ExtentInvExtent2D()
+                glm::vec4(gbufferDesc.Extent.x, gbufferDesc.Extent.y, 1.0f/gbufferDesc.Extent.x, 1.0f/gbufferDesc.Extent.y),
+                glm::vec4(ssgiOutputTex.desc.Extent.x, ssgiOutputTex.desc.Extent.y,
+                         1.0f/ssgiOutputTex.desc.Extent.x, 1.0f/ssgiOutputTex.desc.Extent.y)
+            ))
+            .Dispatch(glm::u32vec3(ssgiOutputTex.desc.Extent.x, ssgiOutputTex.desc.Extent.y, 1));
+    } else {
+        auto pass = rg.AddPass("ssao");
+        rg::SimpleRenderPass::NewCompute(pass, "/shaders/ssgi/ssgi.hlsl")
+            .Read(gbufferDepth.gbuffer)
+            .Read(halfDepthTex)
+            .Read(halfViewNormalTex)
+            .Read(prevRadiance)
+            .Read(reprojectionMap)
+            .Write(ssgiOutputTex)
+            .Constants(std::make_tuple(
+                glm::vec4(gbufferDesc.Extent.x, gbufferDesc.Extent.y, 1.0f/gbufferDesc.Extent.x, 1.0f/gbufferDesc.Extent.y),
+                glm::vec4(ssgiOutputTex.desc.Extent.x, ssgiOutputTex.desc.Extent.y,
+                         1.0f/ssgiOutputTex.desc.Extent.x, 1.0f/ssgiOutputTex.desc.Extent.y)
             ))
             .RawDescriptorSet(1, bindlessDescriptorSet)
-            .Dispatch(ssgiTex->Desc().Extent);
+            .Dispatch(glm::u32vec3(ssgiOutputTex.desc.Extent.x, ssgiOutputTex.desc.Extent.y, 1));
     }
 
     return FilterSsgi(
         rg,
-        ssgiTex,
+        ssgiOutputTex,
         gbufferDepth,
         reprojectionMap,
-        ssgi_tex
+        ssgiTex
     );
 }
 
@@ -71,37 +78,40 @@ tekki::render_graph::ReadOnlyHandle<tekki::backend::vulkan::Image> SsgiRenderer:
     const tekki::render_graph::Handle<tekki::backend::vulkan::Image>& reprojectionMap,
     PingPongTemporalResource& temporalTex
 ) {
-    auto gbufferDesc = gbufferDepth.gbuffer->Desc();
-    auto halfViewNormalTex = gbufferDepth.HalfViewNormal(rg);
-    auto halfDepthTex = gbufferDepth.HalfDepth(rg);
+    auto gbufferDesc = gbufferDepth.gbuffer.desc;
+    auto halfViewNormalTex = gbufferDepth.half_view_normal(*rg.GetRenderGraph());
+    auto halfDepthTex = gbufferDepth.half_depth(*rg.GetRenderGraph());
 
     auto upsampledTex = [&]() {
         auto spatiallyFilteredTex = rg.Create(
-            gbufferDesc
-                .Usage(VK_IMAGE_USAGE_FLAG_BITS_MAX_ENUM)
-                .HalfRes()
-                .Format(INTERNAL_TEX_FMT)
+            rg::ImageDesc::New2d(
+                INTERNAL_TEX_FMT,
+                glm::u32vec2(gbufferDesc.Extent.x / 2, gbufferDesc.Extent.y / 2)
+            ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
         );
 
         if (USE_RUST_SHADERS) {
-            SimpleRenderPass::NewComputeRust(
-                rg.AddPass("ssao spatial"),
-                "ssgi::spatial_filter_cs"
-            )
+            auto pass = rg.AddPass("ssao spatial");
+            auto renderPass = rg::SimpleRenderPass::NewComputeRust(pass, "ssgi::spatial_filter_cs");
+            renderPass
+                .Read(input)
+                .Read(halfDepthTex)
+                .Read(halfViewNormalTex)
+                .Write(spatiallyFilteredTex)
+                .Dispatch(glm::u32vec3(spatiallyFilteredTex.desc.Extent.x, spatiallyFilteredTex.desc.Extent.y, 1));
         } else {
-            SimpleRenderPass::NewCompute(
-                rg.AddPass("ssao spatial"),
-                "/shaders/ssgi/spatial_filter.hlsl"
-            )
+            auto pass = rg.AddPass("ssao spatial");
+            auto renderPass = rg::SimpleRenderPass::NewCompute(pass, "/shaders/ssgi/spatial_filter.hlsl");
+            renderPass
+                .Read(input)
+                .Read(halfDepthTex)
+                .Read(halfViewNormalTex)
+                .Write(spatiallyFilteredTex)
+                .Dispatch(glm::u32vec3(spatiallyFilteredTex.desc.Extent.x, spatiallyFilteredTex.desc.Extent.y, 1));
         }
-        .Read(input)
-        .Read(halfDepthTex)
-        .Read(halfViewNormalTex)
-        .Write(spatiallyFilteredTex)
-        .Dispatch(spatiallyFilteredTex->Desc().Extent);
 
         return UpsampleSsgi(
-            rg,
+            *rg.GetRenderGraph(),
             spatiallyFilteredTex,
             gbufferDepth.depth,
             gbufferDepth.gbuffer
@@ -109,37 +119,50 @@ tekki::render_graph::ReadOnlyHandle<tekki::backend::vulkan::Image> SsgiRenderer:
     }();
 
     auto [historyOutputTex, historyTex] = temporalTex
-        .GetOutputAndHistory(rg, TemporalTexDesc(gbufferDesc.Extent2D()));
+        .GetOutputAndHistory(rg, TemporalTexDesc(glm::u32vec2(gbufferDesc.Extent.x, gbufferDesc.Extent.y)));
 
-    auto filteredOutputTex = rg.Create(gbufferDesc.Format(FINAL_TEX_FMT));
+    auto filteredOutputTex = rg.Create(
+        rg::ImageDesc::New2d(FINAL_TEX_FMT, glm::u32vec2(gbufferDesc.Extent.x, gbufferDesc.Extent.y))
+    );
 
     if (USE_RUST_SHADERS) {
-        SimpleRenderPass::NewComputeRust(
-            rg.AddPass("ssao temporal"),
-            "ssgi::temporal_filter_cs"
-        )
+        auto pass = rg.AddPass("ssao temporal");
+        auto renderPass = rg::SimpleRenderPass::NewComputeRust(pass, "ssgi::temporal_filter_cs");
+        renderPass
+            .Read(upsampledTex)
+            .Read(historyTex)
+            .Read(reprojectionMap)
+            .Write(filteredOutputTex)
+            .Write(historyOutputTex)
+            .Constants(std::make_tuple(
+                glm::vec4(historyOutputTex.desc.Extent.x, historyOutputTex.desc.Extent.y,
+                         1.0f/historyOutputTex.desc.Extent.x, 1.0f/historyOutputTex.desc.Extent.y)
+            ))
+            .Dispatch(glm::u32vec3(historyOutputTex.desc.Extent.x, historyOutputTex.desc.Extent.y, 1));
     } else {
-        SimpleRenderPass::NewCompute(
-            rg.AddPass("ssao temporal"),
-            "/shaders/ssgi/temporal_filter.hlsl"
-        )
+        auto pass = rg.AddPass("ssao temporal");
+        auto renderPass = rg::SimpleRenderPass::NewCompute(pass, "/shaders/ssgi/temporal_filter.hlsl");
+        renderPass
+            .Read(upsampledTex)
+            .Read(historyTex)
+            .Read(reprojectionMap)
+            .Write(filteredOutputTex)
+            .Write(historyOutputTex)
+            .Constants(std::make_tuple(
+                glm::vec4(historyOutputTex.desc.Extent.x, historyOutputTex.desc.Extent.y,
+                         1.0f/historyOutputTex.desc.Extent.x, 1.0f/historyOutputTex.desc.Extent.y)
+            ))
+            .Dispatch(glm::u32vec3(historyOutputTex.desc.Extent.x, historyOutputTex.desc.Extent.y, 1));
     }
-    .Read(upsampledTex)
-    .Read(historyTex)
-    .Read(reprojectionMap)
-    .Write(filteredOutputTex)
-    .Write(historyOutputTex)
-    .Constants(historyOutputTex->Desc().ExtentInvExtent2D())
-    .Dispatch(historyOutputTex->Desc().Extent);
 
-    return filteredOutputTex;
+    return rg::ReadOnlyHandle<tekki::backend::vulkan::Image>(filteredOutputTex);
 }
 
-tekki::backend::vulkan::ImageDesc SsgiRenderer::TemporalTexDesc(const glm::u32vec2& extent) {
-    return tekki::backend::vulkan::ImageDesc::New2D(
-        INTERNAL_TEX_FMT, 
-        glm::u32vec2(extent.x, extent.y)
-    ).Usage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+tekki::render_graph::ImageDesc SsgiRenderer::TemporalTexDesc(const glm::u32vec2& extent) {
+    return tekki::render_graph::ImageDesc::New2d(
+        INTERNAL_TEX_FMT,
+        extent
+    ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
 }
 
 tekki::render_graph::Handle<tekki::backend::vulkan::Image> SsgiRenderer::UpsampleSsgi(
@@ -148,22 +171,31 @@ tekki::render_graph::Handle<tekki::backend::vulkan::Image> SsgiRenderer::Upsampl
     const tekki::render_graph::Handle<tekki::backend::vulkan::Image>& depth,
     const tekki::render_graph::Handle<tekki::backend::vulkan::Image>& gbuffer
 ) {
-    auto outputTex = rg.Create(gbuffer->Desc().Format(INTERNAL_TEX_FMT));
+    auto gbufferDesc = gbuffer.desc;
+    auto outputTex = rg.Create(
+        rg::ImageDesc::New2d(INTERNAL_TEX_FMT, glm::u32vec2(gbufferDesc.Extent.x, gbufferDesc.Extent.y))
+    );
 
     if (USE_RUST_SHADERS) {
-        SimpleRenderPass::NewComputeRust(rg.AddPass("ssao upsample"), "ssgi::upsample_cs")
+        auto pass = rg.AddPass("ssao upsample");
+        auto renderPass = rg::SimpleRenderPass::NewComputeRust(pass, "ssgi::upsample_cs");
+        renderPass
+            .Read(ssgi)
+            .ReadAspect(depth, VK_IMAGE_ASPECT_DEPTH_BIT)
+            .Read(gbuffer)
+            .Write(outputTex)
+            .Dispatch(glm::u32vec3(outputTex.desc.Extent.x, outputTex.desc.Extent.y, 1));
     } else {
-        SimpleRenderPass::NewCompute(
-            rg.AddPass("ssao upsample"),
-            "/shaders/ssgi/upsample.hlsl"
-        )
+        auto pass = rg.AddPass("ssao upsample");
+        auto renderPass = rg::SimpleRenderPass::NewCompute(pass, "/shaders/ssgi/upsample.hlsl");
+        renderPass
+            .Read(ssgi)
+            .ReadAspect(depth, VK_IMAGE_ASPECT_DEPTH_BIT)
+            .Read(gbuffer)
+            .Write(outputTex)
+            .Dispatch(glm::u32vec3(outputTex.desc.Extent.x, outputTex.desc.Extent.y, 1));
     }
-    .Read(ssgi)
-    .ReadAspect(depth, VK_IMAGE_ASPECT_DEPTH_BIT)
-    .Read(gbuffer)
-    .Write(outputTex)
-    .Dispatch(outputTex->Desc().Extent);
-    
+
     return outputTex;
 }
 

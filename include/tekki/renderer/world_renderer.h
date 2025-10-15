@@ -21,6 +21,8 @@
 #include "tekki/rust_shaders_shared/render_overrides.h"
 #include "tekki/asset/mesh.h"
 #include "tekki/core/result.h"
+#include "tekki/renderer/histogram_clipping.h"
+#include "tekki/renderer/world_frame_desc.h"
 
 namespace tekki::renderer {
 
@@ -51,7 +53,7 @@ class MeshHandle {
 public:
     explicit MeshHandle(size_t value) : Value(value) {}
     size_t GetValue() const { return Value; }
-    
+
 private:
     size_t Value;
 };
@@ -60,13 +62,13 @@ class InstanceHandle {
 public:
     explicit InstanceHandle(size_t value) : Value(value) {}
     static const InstanceHandle Invalid;
-    
+
     bool IsValid() const { return *this != Invalid; }
     size_t GetValue() const { return Value; }
-    
+
     bool operator==(const InstanceHandle& other) const { return Value == other.Value; }
     bool operator!=(const InstanceHandle& other) const { return Value != other.Value; }
-    
+
 private:
     size_t Value;
 };
@@ -77,7 +79,7 @@ constexpr size_t TLAS_PREALLOCATE_BYTES = 1024 * 1024 * 32;
 
 struct InstanceDynamicParameters {
     float EmissiveMultiplier;
-    
+
     InstanceDynamicParameters() : EmissiveMultiplier(1.0f) {}
 };
 
@@ -96,7 +98,7 @@ enum class RenderDebugMode {
 struct TriangleLight {
     std::array<std::array<float, 3>, 3> Verts;
     std::array<float, 3> Radiance;
-    
+
     TriangleLight Transform(const glm::vec3& translation, const glm::mat3& rotation) const {
         TriangleLight result = *this;
         auto v0 = rotation * glm::vec3(Verts[0][0], Verts[0][1], Verts[0][2]) + translation;
@@ -107,7 +109,7 @@ struct TriangleLight {
         result.Verts[2] = { v2.x, v2.y, v2.z };
         return result;
     }
-    
+
     TriangleLight ScaleRadiance(const glm::vec3& scale) const {
         TriangleLight result = *this;
         result.Radiance = { Radiance[0] * scale.x, Radiance[1] * scale.y, Radiance[2] * scale.z };
@@ -124,22 +126,15 @@ struct UploadedTriMesh {
     uint32_t IndexCount;
 };
 
-struct HistogramClipping {
-    float Low;
-    float High;
-    
-    HistogramClipping() : Low(0.0f), High(0.0f) {}
-};
-
 struct DynamicExposureState {
     bool Enabled;
     float SpeedLog2;
-    HistogramClipping HistogramClipping;
+    HistogramClipping histogram_clipping;
     float EvFast;
     float EvSlow;
-    
+
     DynamicExposureState() : Enabled(false), SpeedLog2(0.0f), EvFast(0.0f), EvSlow(0.0f) {}
-    
+
     float EvSmoothed() const;
     void Update(float ev, float dt);
 };
@@ -177,12 +172,6 @@ struct AddMeshOptions {
         result.UseLights = value;
         return result;
     }
-};
-
-struct WorldFrameDesc {
-    tekki::rust_shaders_shared::CameraMatrices CameraMatrices;
-    glm::vec2 RenderExtent;
-    glm::vec3 SunDirection;
 };
 
 class WorldRenderer {

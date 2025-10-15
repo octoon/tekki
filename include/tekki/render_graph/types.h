@@ -10,23 +10,14 @@
 #include "tekki/backend/vulkan/device.h"
 #include "tekki/backend/vk_sync.h"
 
-namespace tekki::render_graph {
+// Include needed types from render_graph
+#include "tekki/render_graph/Image.h"
+#include "tekki/render_graph/buffer.h"
 
-// Forward declarations for Image and Buffer are in their own headers
-// They will be included at the end of this file
+namespace tekki::render_graph {
 
 // Use Device from the included header
 using Device = backend::vulkan::Device;
-
-// Forward declare ImageDesc and BufferDesc
-struct ImageDesc;
-struct BufferDesc;
-
-// Forward declarations for graph types
-class Image;
-class Buffer;
-class RayTracingAcceleration;
-struct GraphResourceInfo;
 
 // Ref template is defined in resource.h, forward declare here
 template<typename Res, typename ViewType>
@@ -164,9 +155,7 @@ public:
     void End() {}
 };
 
-// Forward declarations for variant types
-class Image;
-class Buffer;
+// Forward declarations for variant types - RayTracingAcceleration only
 class RayTracingAcceleration;
 struct GraphResourceInfo;
 
@@ -350,7 +339,3 @@ inline tekki::render_graph::ComputePipelineDescBuilder& tekki::render_graph::Com
 inline tekki::render_graph::ComputePipelineDesc tekki::render_graph::ComputePipelineDescBuilder::Build() {
     return std::move(*desc);
 }
-
-// Include Image and Buffer definitions after all other types are defined
-#include "tekki/render_graph/Image.h"
-#include "tekki/render_graph/Buffer.h"

@@ -16,14 +16,9 @@ namespace tekki::render_graph {
 // Forward declarations
 class RenderGraph;
 class RetiredRenderGraph;
-class Image;
-class Buffer;
-template<typename T> class Handle;
 class ExportableGraphResource;
-struct ImageDesc;
-struct BufferDesc;
 class PassBuilder;
-// Device is already defined in types.h
+// Image, Buffer, ImageDesc, BufferDesc, Handle are already defined in types.h
 
 
 class TemporalResourceKey {

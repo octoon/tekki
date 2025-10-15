@@ -5,10 +5,10 @@
 #include <string>
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
-#include "RenderGraph.h"
-#include "Image.h"
-#include "Buffer.h"
-#include "RenderPass.h"
+#include "tekki/render_graph/RenderGraph.h"
+#include "tekki/backend/vulkan/image.h"
+#include "tekki/backend/vulkan/buffer.h"
+#include "tekki/render_graph/RenderPass.h"
 
 namespace tekki::renderer::renderers::old {
 

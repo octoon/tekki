@@ -12,6 +12,7 @@
 namespace tekki::backend::vulkan {
 
 class Device;
+class Image;  // Forward declaration
 
 enum class ImageType {
     Tex1d = 0,
@@ -24,6 +25,8 @@ enum class ImageType {
 };
 
 struct ImageDesc {
+    using Resource = Image;  // Type alias for Handle<Image> template
+
     ImageType Type;
     VkImageUsageFlags Usage;
     VkImageCreateFlags Flags;
@@ -32,6 +35,18 @@ struct ImageDesc {
     VkImageTiling Tiling;
     uint16_t MipLevels;
     uint32_t ArrayElements;
+
+    // Default constructor - creates a 1x1 R8G8B8A8_UNORM texture
+    ImageDesc()
+        : Type(ImageType::Tex2d)
+        , Usage(VK_IMAGE_USAGE_SAMPLED_BIT)
+        , Flags(0)
+        , Format(VK_FORMAT_R8G8B8A8_UNORM)
+        , Extent(1, 1, 1)
+        , Tiling(VK_IMAGE_TILING_OPTIMAL)
+        , MipLevels(1)
+        , ArrayElements(1)
+    {}
 
     ImageDesc(VkFormat format, ImageType imageType, const glm::u32vec3& extent);
     static ImageDesc New1d(VkFormat format, uint32_t extent);
@@ -121,6 +136,7 @@ public:
     using Desc = ImageDesc;  // Type alias for Handle<Image> template
 
     VkImage Raw;
+    VkImage raw;  // Alias for compatibility with render_graph
     ImageDesc desc;
 
     Image(VkImage raw, const ImageDesc& desc);

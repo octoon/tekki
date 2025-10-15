@@ -20,18 +20,7 @@ namespace rg = tekki::render_graph;
 using Image = tekki::backend::vulkan::Image;
 
 class DlssRenderer {
-private:
-    void* DlssFeature;
-    void* NgxParams;
-    glm::vec2 CurrentSupersampleOffset;
-    uint32_t FrameIndex;
-
-    static void CheckNgxResult(NVSDK_NGX_Result result) {
-        if (result != NVSDK_NGX_Result_NVSDK_NGX_Result_Success) {
-            throw std::runtime_error("DLSS operation failed");
-        }
-    }
-
+public:
     struct DlssOptimalSettings {
         glm::u32vec2 OptimalRenderExtent;
         glm::u32vec2 MaxRenderExtent;
@@ -46,6 +35,20 @@ private:
 
         static DlssOptimalSettings ForTargetResolutionAtQuality(void* ngxParams, const glm::u32vec2& targetResolution, NVSDK_NGX_PerfQuality_Value qualityValue);
     };
+
+private:
+    void* DlssFeature;
+    void* NgxParams;
+    glm::vec2 CurrentSupersampleOffset;
+    uint32_t FrameIndex;
+    DlssOptimalSettings OptimalSettings;
+    std::shared_ptr<tekki::backend::RenderBackend> Backend;
+
+    static void CheckNgxResult(NVSDK_NGX_Result result) {
+        if (result != NVSDK_NGX_Result_NVSDK_NGX_Result_Success) {
+            throw std::runtime_error("DLSS operation failed");
+        }
+    }
 
     static NVSDK_NGX_Resource_VK ImageToNgx(rg::RenderPassApi& api,
                                            rg::Ref<Image, rg::GpuSrv> imageRef,

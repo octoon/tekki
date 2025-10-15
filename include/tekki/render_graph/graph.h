@@ -11,6 +11,8 @@
 #include <vulkan/vulkan.hpp>
 #include "tekki/core/result.h"
 #include "tekki/backend/vk_sync.h"
+#include "tekki/render_graph/Image.h"
+#include "tekki/render_graph/buffer.h"
 #include "tekki/render_graph/resource.h"
 #include "tekki/render_graph/resource_registry.h"
 #include "tekki/render_graph/types.h"
@@ -20,6 +22,7 @@ namespace tekki::render_graph {
 
 // Forward declarations
 class PassBuilder;
+class RayTracingAcceleration;
 class CompiledRenderGraph;
 class ExecutingRenderGraph;
 class RetiredRenderGraph;
@@ -89,19 +92,19 @@ struct GraphResourceImportInfo {
     std::variant<ImageImport, BufferImport, RayTracingAccelerationImport, SwapchainImage> data;
 
     // Helper constructors
-    static GraphResourceImportInfo Image(std::shared_ptr<class Image> resource, vk_sync::AccessType access_type) {
+    static GraphResourceImportInfo Image(std::shared_ptr<render_graph::Image> resource, vk_sync::AccessType access_type) {
         GraphResourceImportInfo info;
         info.data = ImageImport{resource, access_type};
         return info;
     }
 
-    static GraphResourceImportInfo Buffer(std::shared_ptr<class Buffer> resource, vk_sync::AccessType access_type) {
+    static GraphResourceImportInfo Buffer(std::shared_ptr<render_graph::Buffer> resource, vk_sync::AccessType access_type) {
         GraphResourceImportInfo info;
         info.data = BufferImport{resource, access_type};
         return info;
     }
 
-    static GraphResourceImportInfo RayTracingAcceleration(std::shared_ptr<class RayTracingAcceleration> resource, vk_sync::AccessType access_type) {
+    static GraphResourceImportInfo RayTracingAcceleration(std::shared_ptr<render_graph::RayTracingAcceleration> resource, vk_sync::AccessType access_type) {
         GraphResourceImportInfo info;
         info.data = RayTracingAccelerationImport{resource, access_type};
         return info;

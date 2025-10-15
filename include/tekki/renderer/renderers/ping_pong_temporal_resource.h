@@ -31,8 +31,8 @@ public:
         rg::TemporalRenderGraph& rg_,
         const rg::ImageDesc& desc) {
 
-        auto output_tex = rg_.GetOrCreateTemporal(output_tex_, desc);
-        auto history_tex = rg_.GetOrCreateTemporal(history_tex_, desc);
+        auto output_tex = rg_.GetOrCreateTemporal<rg::ImageDesc>(output_tex_, desc);
+        auto history_tex = rg_.GetOrCreateTemporal<rg::ImageDesc>(history_tex_, desc);
 
         // Swap for next frame
         std::swap(output_tex_, history_tex_);

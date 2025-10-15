@@ -1,84 +1,90 @@
 #include "tekki/renderer/renderers/ussgi.h"
 #include <stdexcept>
 #include <glm/glm.hpp>
-#include "tekki/backend/vulkan/image.h"
-#include "tekki/renderer/render_graph/render_graph.h"
+#include "tekki/render_graph/RenderGraph.h"
 #include "tekki/renderer/renderers/gbuffer_depth.h"
 #include "tekki/renderer/renderers/ping_pong_temporal_resource.h"
 
 namespace tekki::renderer::renderers {
 
-UssgiRenderer::UssgiRenderer() 
-    : ussgiTex("ussgi") {
+namespace rg = tekki::render_graph;
+
+UssgiRenderer::UssgiRenderer()
+    : ussgiTex_("ussgi") {
 }
 
-std::shared_ptr<tekki::backend::vulkan::Image> UssgiRenderer::Render(
-    tekki::renderer::RenderGraph& renderGraph,
+rg::Handle<Image> UssgiRenderer::Render(
+    rg::TemporalRenderGraph& renderGraph,
     const std::shared_ptr<GbufferDepth>& gbufferDepth,
-    const std::shared_ptr<tekki::backend::vulkan::Image>& reprojectionMap,
-    const std::shared_ptr<tekki::backend::vulkan::Image>& prevRadiance,
+    const rg::Handle<Image>& reprojectionMap,
+    const rg::Handle<Image>& prevRadiance,
     VkDescriptorSet bindlessDescriptorSet
 ) {
     try {
-        const auto& gbufferDesc = gbufferDepth->GetGbuffer()->GetDesc();
-        auto halfViewNormalTex = gbufferDepth->GetHalfViewNormal(renderGraph);
+        auto gbufferDesc = gbufferDepth->gbuffer.desc;
+        auto halfViewNormalTex = gbufferDepth->half_view_normal(*renderGraph.GetRenderGraph());
 
-        auto ussgiTexDesc = gbufferDesc;
-        ussgiTexDesc.usage = VK_IMAGE_USAGE_FLAG_BITS_MAX_ENUM;
-        ussgiTexDesc.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-        
-        auto ussgiTex = renderGraph.CreateImage(ussgiTexDesc);
+        // Create USSGI texture
+        auto ussgiTex = renderGraph.Create(rg::ImageDesc::New2d(
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            glm::u32vec2(gbufferDesc.Extent.x, gbufferDesc.Extent.y)
+        ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT));
 
-        auto ussgiPass = renderGraph.AddPass("ussgi");
-        auto ussgiShader = std::make_shared<tekki::backend::vulkan::Shader>("/shaders/ssgi/ussgi.hlsl");
-        
-        ussgiPass->AddReadResource(gbufferDepth->GetGbuffer());
-        ussgiPass->AddReadResource(gbufferDepth->GetDepth(), VK_IMAGE_ASPECT_DEPTH_BIT);
-        ussgiPass->AddReadResource(halfViewNormalTex);
-        ussgiPass->AddReadResource(prevRadiance);
-        ussgiPass->AddReadResource(reprojectionMap);
-        ussgiPass->AddWriteResource(ussgiTex);
-        ussgiPass->SetDescriptorSet(1, bindlessDescriptorSet);
-        
-        glm::vec4 gbufferExtentInvExtent = gbufferDesc.GetExtentInvExtent2D();
-        glm::vec4 ussgiExtentInvExtent = ussgiTex->GetDesc().GetExtentInvExtent2D();
-        ussgiPass->SetConstants(std::vector<float>{
-            gbufferExtentInvExtent.x, gbufferExtentInvExtent.y, gbufferExtentInvExtent.z, gbufferExtentInvExtent.w,
-            ussgiExtentInvExtent.x, ussgiExtentInvExtent.y, ussgiExtentInvExtent.z, ussgiExtentInvExtent.w
-        });
-        
-        ussgiPass->Dispatch(ussgiTex->GetDesc().extent.width, ussgiTex->GetDesc().extent.height, 1);
+        // USSGI pass
+        {
+            auto pass = renderGraph.AddPass("ussgi");
+            auto renderPass = rg::SimpleRenderPass::NewCompute(
+                pass,
+                "/shaders/ssgi/ussgi.hlsl"
+            );
+            renderPass
+                .Read(gbufferDepth->gbuffer)
+                .ReadAspect(gbufferDepth->depth, VK_IMAGE_ASPECT_DEPTH_BIT)
+                .Read(halfViewNormalTex)
+                .Read(prevRadiance)
+                .Read(reprojectionMap)
+                .Write(ussgiTex)
+                .RawDescriptorSet(1, bindlessDescriptorSet)
+                .Constants(std::make_tuple(
+                    glm::vec4(gbufferDesc.Extent.x, gbufferDesc.Extent.y,
+                             1.0f/gbufferDesc.Extent.x, 1.0f/gbufferDesc.Extent.y),
+                    glm::vec4(ussgiTex.desc.Extent.x, ussgiTex.desc.Extent.y,
+                             1.0f/ussgiTex.desc.Extent.x, 1.0f/ussgiTex.desc.Extent.y)
+                ))
+                .Dispatch(glm::u32vec3(ussgiTex.desc.Extent.x, ussgiTex.desc.Extent.y, 1));
+        }
 
-        auto temporalDesc = TemporalTexDesc(glm::uvec2(gbufferDesc.extent.width, gbufferDesc.extent.height));
-        auto [filteredOutputTex, historyTex] = ussgiTex.GetOutputAndHistory(renderGraph, temporalDesc);
+        // Temporal filtering
+        auto temporalDesc = TemporalTexDesc(glm::uvec2(gbufferDesc.Extent.x, gbufferDesc.Extent.y));
+        auto [filteredOutputTex, historyTex] = ussgiTex_.GetOutputAndHistory(renderGraph, temporalDesc);
 
-        auto temporalPass = renderGraph.AddPass("ussgi temporal");
-        auto temporalShader = std::make_shared<tekki::backend::vulkan::Shader>("/shaders/ssgi/temporal_filter.hlsl");
-        
-        temporalPass->AddReadResource(ussgiTex);
-        temporalPass->AddReadResource(historyTex);
-        temporalPass->AddReadResource(reprojectionMap);
-        temporalPass->AddWriteResource(filteredOutputTex);
-        
-        glm::vec4 filteredExtentInvExtent = filteredOutputTex->GetDesc().GetExtentInvExtent2D();
-        temporalPass->SetConstants(std::vector<float>{
-            filteredExtentInvExtent.x, filteredExtentInvExtent.y, filteredExtentInvExtent.z, filteredExtentInvExtent.w
-        });
-        
-        temporalPass->Dispatch(filteredOutputTex->GetDesc().extent.width, filteredOutputTex->GetDesc().extent.height, 1);
+        {
+            auto pass = renderGraph.AddPass("ussgi temporal");
+            auto renderPass = rg::SimpleRenderPass::NewCompute(
+                pass,
+                "/shaders/ssgi/temporal_filter.hlsl"
+            );
+            renderPass
+                .Read(ussgiTex)
+                .Read(historyTex)
+                .Read(reprojectionMap)
+                .Write(filteredOutputTex)
+                .Constants(std::make_tuple(
+                    glm::vec4(filteredOutputTex.desc.Extent.x, filteredOutputTex.desc.Extent.y,
+                             1.0f/filteredOutputTex.desc.Extent.x, 1.0f/filteredOutputTex.desc.Extent.y)
+                ))
+                .Dispatch(glm::u32vec3(filteredOutputTex.desc.Extent.x, filteredOutputTex.desc.Extent.y, 1));
+        }
 
-        return filteredOutputTex;
+        return rg::Handle<tekki::backend::vulkan::Image>(filteredOutputTex);
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("UssgiRenderer::Render failed: ") + e.what());
     }
 }
 
-tekki::backend::vulkan::ImageDesc UssgiRenderer::TemporalTexDesc(const glm::uvec2& extent) {
-    tekki::backend::vulkan::ImageDesc desc;
-    desc.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    desc.extent = {extent.x, extent.y, 1};
-    desc.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-    return desc;
+rg::ImageDesc UssgiRenderer::TemporalTexDesc(const glm::uvec2& extent) {
+    return rg::ImageDesc::New2d(VK_FORMAT_R16G16B16A16_SFLOAT, extent)
+        .WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
 }
 
 } // namespace tekki::renderer::renderers

@@ -614,19 +614,4 @@ class ImageHandle WorldRenderer::PrepareRenderGraphReference(class TemporalRende
     return ImageHandle();
 }
 
-float RadicalInverse(uint32_t n, uint32_t base) {
-    float val = 0.0f;
-    float inv_base = 1.0f / static_cast<float>(base);
-    float inv_bi = inv_base;
-    
-    while (n > 0) {
-        uint32_t d_i = n % base;
-        val += static_cast<float>(d_i) * inv_bi;
-        n = static_cast<uint32_t>(static_cast<float>(n) * inv_base);
-        inv_bi *= inv_base;
-    }
-    
-    return val;
-}
-
 } // namespace tekki::renderer

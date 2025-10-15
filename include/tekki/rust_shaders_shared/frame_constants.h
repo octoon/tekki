@@ -10,6 +10,19 @@ namespace tekki::rust_shaders_shared {
 
 constexpr size_t IRCACHE_CASCADE_COUNT = 12;
 
+struct GiCascadeConstants {
+    glm::ivec4 scroll_frac;
+    glm::ivec4 scroll_int;
+    glm::ivec4 voxels_scrolled_this_frame;
+    float volume_size;
+    float voxel_size;
+    glm::uvec2 pad;
+
+    GiCascadeConstants() = default;
+    GiCascadeConstants(const GiCascadeConstants&) = default;
+    GiCascadeConstants& operator=(const GiCascadeConstants&) = default;
+};
+
 struct IrcacheCascadeConstants {
     glm::ivec4 origin;
     glm::ivec4 voxels_scrolled_this_frame;

@@ -1,54 +1,51 @@
 #pragma once
 
 #include "tekki/render_graph/Image.h"
-#include "tekki/render_graph/Buffer.h"
-#include "tekki/backend/vulkan/image.h"
-#include "tekki/backend/vulkan/buffer.h"
+#include "tekki/render_graph/buffer.h"
 #include <glm/glm.hpp>
 
 namespace tekki::render_graph {
 
-// Convert render_graph::ImageType to backend::vulkan::ImageType
-inline tekki::backend::vulkan::ImageType ConvertImageType(ImageType type) {
-    return static_cast<tekki::backend::vulkan::ImageType>(static_cast<int>(type));
+// Helper functions to convert descriptors for temporal operations
+inline ImageDesc ConvertToTemporalOutput(const ImageDesc& src) {
+    ImageDesc desc = src;
+    // Temporal output typically needs storage and transfer access
+    desc.Usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    return desc;
 }
 
-// Convert render_graph::ImageDesc to backend::vulkan::ImageDesc
-inline tekki::backend::vulkan::ImageDesc ConvertImageDesc(const ImageDesc& rgDesc) {
-    tekki::backend::vulkan::ImageDesc vkDesc(
-        rgDesc.format,
-        ConvertImageType(rgDesc.image_type),
-        glm::u32vec3(rgDesc.extent[0], rgDesc.extent[1], rgDesc.extent[2])
+inline ImageDesc ConvertToTemporalInput(const ImageDesc& src) {
+    ImageDesc desc = src;
+    // Temporal input typically needs sampled access
+    desc.Usage |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    return desc;
+}
+
+// Convert extent for half resolution
+inline glm::u32vec3 HalfExtent(const glm::u32vec3& extent) {
+    return glm::u32vec3(
+        std::max(1u, extent.x / 2),
+        std::max(1u, extent.y / 2),
+        std::max(1u, extent.z / 2)
     );
-    vkDesc.WithUsage(rgDesc.usage)
-          .WithFlags(rgDesc.flags)
-          .WithTiling(rgDesc.tiling)
-          .WithMipLevels(rgDesc.mip_levels)
-          .WithArrayElements(rgDesc.array_elements);
-    return vkDesc;
 }
 
-// Convert render_graph::MemoryLocation to backend::MemoryLocation
-inline tekki::MemoryLocation ConvertMemoryLocation(MemoryLocation loc) {
-    switch (loc) {
-        case MemoryLocation::GpuOnly: return tekki::MemoryLocation::GpuOnly;
-        case MemoryLocation::CpuToGpu: return tekki::MemoryLocation::CpuToGpu;
-        case MemoryLocation::GpuToCpu: return tekki::MemoryLocation::GpuToCpu;
-        case MemoryLocation::Unknown: return tekki::MemoryLocation::Unknown;
-        default: return tekki::MemoryLocation::GpuOnly;
-    }
+// Convert extent with divisor
+inline glm::u32vec3 DivideExtent(const glm::u32vec3& extent, const glm::u32vec3& divisor) {
+    return glm::u32vec3(
+        std::max(1u, extent.x / divisor.x),
+        std::max(1u, extent.y / divisor.y),
+        std::max(1u, extent.z / divisor.z)
+    );
 }
 
-// Convert render_graph::BufferDesc to backend::vulkan::BufferDesc
-inline tekki::backend::vulkan::BufferDesc ConvertBufferDesc(const BufferDesc& rgDesc) {
-    tekki::backend::vulkan::BufferDesc vkDesc;
-    vkDesc.Size = rgDesc.size;
-    vkDesc.Usage = rgDesc.usage;
-    vkDesc.MemoryLocation = ConvertMemoryLocation(rgDesc.memory_location);
-    if (rgDesc.alignment.has_value()) {
-        vkDesc.Alignment = rgDesc.alignment.value();
-    }
-    return vkDesc;
+// Convert extent with div-up (round up division)
+inline glm::u32vec3 DivUpExtent(const glm::u32vec3& extent, const glm::u32vec3& divisor) {
+    return glm::u32vec3(
+        std::max(1u, (extent.x + divisor.x - 1) / divisor.x),
+        std::max(1u, (extent.y + divisor.y - 1) / divisor.y),
+        std::max(1u, (extent.z + divisor.z - 1) / divisor.z)
+    );
 }
 
 } // namespace tekki::render_graph

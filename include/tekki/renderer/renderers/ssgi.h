@@ -7,11 +7,11 @@
 #include "tekki/render_graph/lib.h"
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/rust_shaders_shared/ssgi.h"
+#include "tekki/renderer/renderers/ping_pong_temporal_resource.h"
 
 namespace tekki::renderer::renderers {
 
 struct GbufferDepth;
-class PingPongTemporalResource;
 
 // The Rust shaders currently suffer a perfomance penalty. Tracking: https://github.com/EmbarkStudios/kajiya/issues/24
 constexpr bool USE_RUST_SHADERS = false;
@@ -39,7 +39,7 @@ private:
         PingPongTemporalResource& temporalTex
     );
 
-    static tekki::backend::vulkan::ImageDesc TemporalTexDesc(const glm::u32vec2& extent);
+    static tekki::render_graph::ImageDesc TemporalTexDesc(const glm::u32vec2& extent);
 
     static tekki::render_graph::Handle<tekki::backend::vulkan::Image> UpsampleSsgi(
         tekki::render_graph::RenderGraph& rg,

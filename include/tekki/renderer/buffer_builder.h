@@ -105,7 +105,7 @@ public:
             totalSize += upload.Source->GetSize();
         }
 
-        if (totalSize + targetOffset > target->desc.Size) {
+        if (totalSize + targetOffset > target->desc.size) {
             throw std::runtime_error("Buffer upload would exceed target buffer size");
         }
 
@@ -136,9 +136,9 @@ public:
 
             // Create staging buffer
             tekki::backend::vulkan::BufferDesc stagingDesc;
-            stagingDesc.Size = chunkSize;
-            stagingDesc.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            stagingDesc.MemoryLocation = tekki::MemoryLocation::CpuToGpu;
+            stagingDesc.size = chunkSize;
+            stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            stagingDesc.memory_location = tekki::MemoryLocation::CpuToGpu;
 
             auto stagingBuffer = device->CreateBuffer(stagingDesc, "buffer upload staging");
 

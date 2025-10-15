@@ -10,6 +10,7 @@
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/render_graph/graph.h"
+#include "tekki/render_graph/temporal.h"
 #include "tekki/renderer/renderers/ircache.h"
 #include "tekki/renderer/renderers/rtdgi.h"
 #include "tekki/renderer/renderers/wrc.h"
@@ -17,6 +18,8 @@
 #include "tekki/renderer/renderers/ping_pong_temporal_resource.h"
 
 namespace tekki::renderer::renderers {
+
+namespace rg = tekki::render_graph;
 
 struct TracedRtr {
     rg::Handle<Image> ResolvedTex;
@@ -43,22 +46,22 @@ private:
     PingPongTemporalResource TemporalRngTex;
     PingPongTemporalResource TemporalHitNormalTex;
 
-    std::shared_ptr<Buffer> RankingTileBuf;
-    std::shared_ptr<Buffer> ScamblingTileBuf;
-    std::shared_ptr<Buffer> SobolBuf;
+    std::shared_ptr<tekki::backend::vulkan::Buffer> RankingTileBuf;
+    std::shared_ptr<tekki::backend::vulkan::Buffer> ScamblingTileBuf;
+    std::shared_ptr<tekki::backend::vulkan::Buffer> SobolBuf;
 
     bool ReuseRtdgiRays;
 
-    static ImageDesc TemporalTexDesc(const glm::uvec2& extent);
-    static std::shared_ptr<Buffer> MakeLutBuffer(
-        const std::shared_ptr<Device>& device,
+    static tekki::render_graph::ImageDesc TemporalTexDesc(const glm::uvec2& extent);
+    static std::shared_ptr<tekki::backend::vulkan::Buffer> MakeLutBuffer(
+        const std::shared_ptr<tekki::backend::vulkan::Device>& device,
         const void* data,
         size_t size,
         const std::string& name
     );
 
 public:
-    RtrRenderer(const std::shared_ptr<Device>& device);
+    RtrRenderer(const std::shared_ptr<tekki::backend::vulkan::Device>& device);
 
     TracedRtr Trace(
         rg::TemporalRenderGraph& rg,

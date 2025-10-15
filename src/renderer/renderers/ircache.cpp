@@ -15,6 +15,18 @@
 
 namespace tekki::renderer::renderers {
 
+namespace rg = tekki::render_graph;
+
+// Helper function to convert backend BufferDesc to render graph BufferDesc
+rg::BufferDesc ConvertToRenderGraphDesc(const tekki::backend::vulkan::BufferDesc& backendDesc) {
+    rg::BufferDesc rgDesc;
+    rgDesc.size = backendDesc.size;
+    rgDesc.usage = backendDesc.usage;
+    rgDesc.memory_location = backendDesc.memory_location;
+    rgDesc.alignment = backendDesc.alignment;
+    return rgDesc;
+}
+
 IrcacheRenderer::IrcacheRenderer(std::shared_ptr<tekki::backend::vulkan::Device> device)
     : DebugRenderPass(nullptr)
     , Initialized(false)
@@ -76,8 +88,9 @@ IrcacheRenderState IrcacheRenderer::Prepare(tekki::render_graph::TemporalRenderG
     static_assert(INDIRECTION_BUF_ELEM_COUNT >= MAX_ENTRIES, "INDIRECTION_BUF_ELEM_COUNT must be >= MAX_ENTRIES");
 
     auto temporal_storage_buffer = [&](const std::string& name, size_t size) -> tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> {
-        auto desc = tekki::backend::vulkan::BufferDesc::NewGpuOnly(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-        return rg.GetOrCreateTemporal(rg::TemporalResourceKey(name), desc);
+        auto backendDesc = tekki::backend::vulkan::BufferDesc::NewGpuOnly(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        auto rgDesc = ConvertToRenderGraphDesc(backendDesc);
+        return rg.GetOrCreateTemporal(rg::TemporalResourceKey(name), rgDesc);
     };
 
     IrcacheRenderState state{
@@ -131,17 +144,18 @@ IrcacheRenderState IrcacheRenderer::Prepare(tekki::render_graph::TemporalRenderG
     }
 
     auto indirect_args_buf = [&]() -> tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> {
-        tekki::backend::vulkan::BufferDesc desc;
-        desc.size = (sizeof(uint32_t) * 4) * 2;
-        desc.usage = VK_BUFFER_USAGE_FLAG_BITS_MAX_ENUM;
-        desc.memory_usage = tekki::backend::vulkan::MemoryUsage::GPU_ONLY;
-        
-        auto buf = rg.Create(desc);
+        tekki::backend::vulkan::BufferDesc backendDesc;
+        backendDesc.size = (sizeof(uint32_t) * 4) * 2;
+        backendDesc.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        backendDesc.memory_location = tekki::MemoryLocation::GpuOnly;
+
+        auto rgDesc = ConvertToRenderGraphDesc(backendDesc);
+        auto buf = rg.Create(rgDesc);
 
         auto pass = rg.AddPass("_ircache dispatch args");
         auto simplePass = tekki::render_graph::SimpleRenderPass::NewCompute(
             pass, "/shaders/ircache/prepare_age_dispatch_args.hlsl");
-        
+
         simplePass
             .Write(state.IrcacheMetaBuf)
             .Write(buf)
@@ -152,10 +166,11 @@ IrcacheRenderState IrcacheRenderer::Prepare(tekki::render_graph::TemporalRenderG
 
     tekki::backend::vulkan::BufferDesc entryOccupancyDesc;
     entryOccupancyDesc.size = sizeof(uint32_t) * MAX_ENTRIES;
-    entryOccupancyDesc.usage = VK_BUFFER_USAGE_FLAG_BITS_MAX_ENUM;
-    entryOccupancyDesc.memory_usage = tekki::backend::vulkan::MemoryUsage::GPU_ONLY;
-    
-    auto entry_occupancy_buf = rg.Create(entryOccupancyDesc);
+    entryOccupancyDesc.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    entryOccupancyDesc.memory_location = tekki::MemoryLocation::GpuOnly;
+
+    auto rgEntryOccupancyDesc = ConvertToRenderGraphDesc(entryOccupancyDesc);
+    auto entry_occupancy_buf = rg.Create(rgEntryOccupancyDesc);
 
     auto agePass = rg.AddPass("age ircache entries");
     auto ageSimplePass = tekki::render_graph::SimpleRenderPass::NewCompute(
@@ -172,9 +187,12 @@ IrcacheRenderState IrcacheRenderer::Prepare(tekki::render_graph::TemporalRenderG
         .Write(state.IrcacheRepositionProposalCountBuf)
         .Write(state.IrcacheIrradianceBuf)
         .Write(entry_occupancy_buf)
-        .DispatchIndirect(indirect_args_buf, 0);
+        .Dispatch(glm::uvec3(MAX_ENTRIES, 1, 1));
 
-    inclusive_prefix_scan_u32_1m(rg, entry_occupancy_buf);
+    auto renderGraphPtr = std::shared_ptr<tekki::render_graph::RenderGraph>(rg.GetRenderGraph(), [](tekki::render_graph::RenderGraph*) {
+        // No delete - the TemporalRenderGraph owns the RenderGraph
+    });
+    PrefixScan::InclusivePrefixScanU32_1M(renderGraphPtr, entry_occupancy_buf);
 
     auto compactPass = rg.AddPass("ircache compact");
     auto compactSimplePass = tekki::render_graph::SimpleRenderPass::NewCompute(
@@ -185,7 +203,7 @@ IrcacheRenderState IrcacheRenderer::Prepare(tekki::render_graph::TemporalRenderG
         .Write(state.IrcacheLifeBuf)
         .Read(entry_occupancy_buf)
         .Write(state.IrcacheEntryIndirectionBuf)
-        .DispatchIndirect(indirect_args_buf, 0);
+        .Dispatch(glm::uvec3(MAX_ENTRIES, 1, 1));
 
     return state;
 }

@@ -8,8 +8,7 @@
 #include "tekki/backend/vulkan/image.h"
 #include "tekki/backend/vulkan/ray_tracing.h"
 #include "tekki/render_graph/temporal.h"
-// TODO: Implement simple_render_pass.h when needed
-// #include "tekki/renderer/render_graph/simple_render_pass.h"
+#include "tekki/render_graph/simple_render_pass.h"
 #include "tekki/renderer/renderers/ircache_render_state.h"
 #include "tekki/renderer/renderers/wrc_render_state.h"
 #include "tekki/renderer/renderers/gbuffer_depth.h"
@@ -23,19 +22,19 @@ using TemporalRenderGraph = tekki::render_graph::TemporalRenderGraph;
 using RayTracingAcceleration = tekki::backend::vulkan::RayTracingAcceleration;
 
 struct RtdgiCandidates {
-    std::shared_ptr<Image> CandidateRadianceTex;
-    std::shared_ptr<Image> CandidateNormalTex;
-    std::shared_ptr<Image> CandidateHitTex;
+    rg::Handle<Image> CandidateRadianceTex;
+    rg::Handle<Image> CandidateNormalTex;
+    rg::Handle<Image> CandidateHitTex;
 };
 
 struct RtdgiOutput {
-    std::shared_ptr<Image> ScreenIrradianceTex;
+    rg::Handle<Image> ScreenIrradianceTex;
     RtdgiCandidates Candidates;
 };
 
 struct ReprojectedRtdgi {
-    std::shared_ptr<Image> ReprojectedHistoryTex;
-    std::shared_ptr<Image> TemporalOutputTex;
+    rg::Handle<Image> ReprojectedHistoryTex;
+    rg::Handle<Image> TemporalOutputTex;
 };
 
 class RtdgiRenderer {
@@ -52,22 +51,22 @@ private:
     PingPongTemporalResource Temporal2VarianceTex;
     PingPongTemporalResource TemporalHitNormalTex;
 
-    static Image::Desc TemporalTexDesc(const glm::uvec2& extent);
+    static rg::ImageDesc TemporalTexDesc(const std::array<uint32_t, 2>& extent);
 
-    std::shared_ptr<Image> Temporal(
+    rg::Handle<Image> Temporal(
         TemporalRenderGraph& rg,
-        const std::shared_ptr<Image>& inputColor,
+        const rg::Handle<Image>& inputColor,
         const GbufferDepth& gbufferDepth,
-        const std::shared_ptr<Image>& reprojectionMap,
-        const std::shared_ptr<Image>& reprojectedHistoryTex,
-        const std::shared_ptr<Image>& rtHistoryInvalidityTex,
-        std::shared_ptr<Image> temporalOutputTex);
+        const rg::Handle<Image>& reprojectionMap,
+        const rg::Handle<Image>& reprojectedHistoryTex,
+        const rg::Handle<Image>& rtHistoryInvalidityTex,
+        rg::Handle<Image> temporalOutputTex);
 
-    static std::shared_ptr<Image> Spatial(
+    static rg::Handle<Image> Spatial(
         TemporalRenderGraph& rg,
-        const std::shared_ptr<Image>& inputColor,
+        const rg::Handle<Image>& inputColor,
         const GbufferDepth& gbufferDepth,
-        const std::shared_ptr<Image>& ssaoTex,
+        const rg::Handle<Image>& ssaoTex,
         VkDescriptorSet bindlessDescriptorSet);
 
 public:
@@ -78,19 +77,19 @@ public:
 
     ReprojectedRtdgi Reproject(
         TemporalRenderGraph& rg,
-        const std::shared_ptr<Image>& reprojectionMap);
+        const rg::Handle<Image>& reprojectionMap);
 
     RtdgiOutput Render(
         TemporalRenderGraph& rg,
         const ReprojectedRtdgi& reprojectedRtdgi,
         const GbufferDepth& gbufferDepth,
-        const std::shared_ptr<Image>& reprojectionMap,
-        const std::shared_ptr<Image>& skyCube,
+        const rg::Handle<Image>& reprojectionMap,
+        const rg::Handle<Image>& skyCube,
         VkDescriptorSet bindlessDescriptorSet,
         IrcacheRenderState& ircache,
         const WrcRenderState& wrc,
-        const std::shared_ptr<RayTracingAcceleration>& tlas,
-        const std::shared_ptr<Image>& ssaoTex);
+        const rg::Handle<RayTracingAcceleration>& tlas,
+        const rg::Handle<Image>& ssaoTex);
 };
 
 }

@@ -15,16 +15,6 @@ namespace tekki::renderer::renderers::old {
 
 // Cone sweep global illumination prototype
 
-// VOLUME_DIMS and CASCADE_COUNT must match GPU code.
-// Seach token: d4109bba-438f-425e-8667-19e591be9a56
-constexpr uint32_t VOLUME_DIMS = 64;
-constexpr size_t CASCADE_COUNT = 1;
-constexpr bool SCROLL_CASCADES = false;
-constexpr float VOLUME_WORLD_SCALE_MULT = 1.0f;
-
-// Search token: b518ed19-c715-4cc7-9bc7-e0dbbca3e037
-constexpr float CASCADE_EXP_SCALING_RATIO = 2.0f;
-
 CascadeScroll::CascadeScroll() : Scroll{0, 0, 0, 0} {}
 
 std::array<int32_t, 4> CascadeScroll::VolumeScrollOffsetFrom(const CascadeScroll& other) const {
@@ -204,11 +194,10 @@ CsgiVolume CsgiRenderer::Render(
     }
 
     auto nullCascade = renderGraph->Create(
-        tekki::backend::vulkan::ImageDesc{}
-        .SetType(tekki::backend::vulkan::ImageType::Tex3d)
-        .SetFormat(VK_FORMAT_B10G11R11_UFLOAT_PACK32)
-        .SetExtent({1, 1, 1})
-        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT)
+        tekki::render_graph::ImageDesc::New3d(
+            VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            glm::u32vec3(1, 1, 1)
+        ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT)
     );
 
     for (int cascade_i = CASCADE_COUNT - 1; cascade_i >= 0; --cascade_i) {
@@ -265,36 +254,33 @@ CsgiVolume CsgiRenderer::CreateVolumeWithDimensions(
     for (size_t i = 0; i < CASCADE_COUNT; ++i) {
         directCascades[i] = renderGraph->GetOrCreateTemporal(
             "csgi.direct_cascade" + std::to_string(i),
-            tekki::backend::vulkan::ImageDesc{}
-            .SetType(tekki::backend::vulkan::ImageType::Tex3d)
-            .SetFormat(VK_FORMAT_R16G16B16A16_SFLOAT)
-            .SetExtent(directCascadeDimensions)
-            .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
+            tekki::render_graph::ImageDesc::New3d(
+                VK_FORMAT_R16G16B16A16_SFLOAT,
+                glm::u32vec3(directCascadeDimensions[0], directCascadeDimensions[1], directCascadeDimensions[2])
+            ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
         );
 
         indirectCascades[i] = renderGraph->GetOrCreateTemporal(
             "csgi.indirect_cascade" + std::to_string(i),
-            tekki::backend::vulkan::ImageDesc{}
-            .SetType(tekki::backend::vulkan::ImageType::Tex3d)
-            .SetFormat(VK_FORMAT_B10G11R11_UFLOAT_PACK32)
-            .SetExtent(indirectCascadeDimensions)
-            .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
+            tekki::render_graph::ImageDesc::New3d(
+                VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+                glm::u32vec3(indirectCascadeDimensions[0], indirectCascadeDimensions[1], indirectCascadeDimensions[2])
+            ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
         );
 
         indirectCombinedCascades[i] = renderGraph->GetOrCreateTemporal(
             "csgi.indirect_cascade_combined" + std::to_string(i),
-            tekki::backend::vulkan::ImageDesc{}
-            .SetType(tekki::backend::vulkan::ImageType::Tex3d)
-            .SetFormat(VK_FORMAT_B10G11R11_UFLOAT_PACK32)
-            .SetExtent(indirectCombinedCascadeDimensions)
-            .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
+            tekki::render_graph::ImageDesc::New3d(
+                VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+                glm::u32vec3(indirectCombinedCascadeDimensions[0], indirectCombinedCascadeDimensions[1], indirectCombinedCascadeDimensions[2])
+            ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
         );
 
         opacityCascades[i] = renderGraph->Create(
-            tekki::backend::vulkan::ImageDesc{}
-            .SetType(tekki::backend::vulkan::ImageType::Tex3d)
-            .SetFormat(VK_FORMAT_R8_UNORM)
-            .SetExtent(opacityCascadeDimensions)
+            tekki::render_graph::ImageDesc::New3d(
+                VK_FORMAT_R8_UNORM,
+                glm::u32vec3(opacityCascadeDimensions[0], opacityCascadeDimensions[1], opacityCascadeDimensions[2])
+            ).WithUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
         );
     }
 

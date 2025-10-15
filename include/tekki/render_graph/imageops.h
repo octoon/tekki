@@ -4,14 +4,13 @@
 #include <memory>
 #include <glm/glm.hpp>
 #include "tekki/core/result.h"
+#include "tekki/render_graph/types.h"
 #include "tekki/render_graph/resource.h"
 
 namespace tekki::render_graph {
 
 // Forward declarations
 class RenderGraph;
-template<typename T> class Handle;
-class Image;
 
 class ImageOps {
 public:

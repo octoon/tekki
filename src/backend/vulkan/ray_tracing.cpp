@@ -315,7 +315,7 @@ std::shared_ptr<RayTracingAcceleration> Device::CreateRayTracingAcceleration(VkA
             throw std::runtime_error("Failed to create acceleration structure");
         }
 
-        if (static_cast<size_t>(memoryRequirements.buildScratchSize) > scratchBufferPtr->desc.Size) {
+        if (static_cast<size_t>(memoryRequirements.buildScratchSize) > scratchBufferPtr->desc.size) {
             throw std::runtime_error("TODO: resize scratch; see `RT_SCRATCH_BUFFER_SIZE`");
         }
 
@@ -372,14 +372,14 @@ void Device::RebuildRayTracingAcceleration(VkCommandBuffer commandBuffer, VkAcce
         &memoryRequirements
     );
 
-    if (static_cast<size_t>(memoryRequirements.accelerationStructureSize) > acceleration->BackingBuffer.desc.Size) {
+    if (static_cast<size_t>(memoryRequirements.accelerationStructureSize) > acceleration->BackingBuffer.desc.size) {
         throw std::runtime_error("todo: backing");
     }
 
     std::unique_lock<std::mutex> scratchBufferLock(*scratchBuffer->BufferMutex);
     const auto& scratchBufferObj = scratchBuffer->Buffer;
 
-    if (static_cast<size_t>(memoryRequirements.buildScratchSize) > scratchBufferObj.desc.Size) {
+    if (static_cast<size_t>(memoryRequirements.buildScratchSize) > scratchBufferObj.desc.size) {
         throw std::runtime_error("todo: scratch");
     }
 

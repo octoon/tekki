@@ -8,6 +8,7 @@
 #include "tekki/render_graph/pass_builder.h"
 #include "tekki/render_graph/temporal.h"
 #include "tekki/render_graph/imageops.h"
+#include "tekki/render_graph/simple_render_pass.h"
 
 namespace tekki::render_graph {
 

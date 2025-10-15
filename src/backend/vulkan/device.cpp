@@ -120,8 +120,8 @@ Buffer Device::CreateBufferImpl(VkDevice device, tekki::Allocator* allocator,
     // Create buffer using the allocator
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = desc.Size;
-    bufferInfo.usage = desc.Usage;
+    bufferInfo.size = desc.size;
+    bufferInfo.usage = desc.usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VkBuffer buffer;
@@ -135,7 +135,7 @@ Buffer Device::CreateBufferImpl(VkDevice device, tekki::Allocator* allocator,
 
     tekki::AllocationCreateDesc allocDesc{};
     allocDesc.requirements = memRequirements;
-    allocDesc.location = desc.MemoryLocation;
+    allocDesc.location = desc.memory_location;
     allocDesc.linear = false;
     allocDesc.allocation_scheme = tekki::AllocationScheme::GpuAllocatorManaged;
 
@@ -409,9 +409,9 @@ std::shared_ptr<Device> Device::Create(const std::shared_ptr<tekki::backend::vul
 
     // Create crash tracking buffer
     BufferDesc crashBufferDesc;
-    crashBufferDesc.Size = 4;
-    crashBufferDesc.Usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    crashBufferDesc.MemoryLocation = tekki::MemoryLocation::GpuToCpu;
+    crashBufferDesc.size = 4;
+    crashBufferDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    crashBufferDesc.memory_location = tekki::MemoryLocation::GpuToCpu;
     
     Buffer crashTrackingBuffer = CreateBufferImpl(rawDevice, globalAllocator.get(), crashBufferDesc, "crash tracking buffer");
 
@@ -631,9 +631,9 @@ Buffer Device::CreateBuffer(BufferDesc desc, const std::string& name, const std:
         } else {
             // Need to use a staging buffer
             BufferDesc stagingDesc;
-            stagingDesc.Size = initialData.size();
-            stagingDesc.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            stagingDesc.MemoryLocation = tekki::MemoryLocation::CpuToGpu;
+            stagingDesc.size = initialData.size();
+            stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            stagingDesc.memory_location = tekki::MemoryLocation::CpuToGpu;
 
             Buffer stagingBuffer = CreateBufferImpl(raw_, globalAllocator_.get(), stagingDesc, "staging buffer");
             auto stagingSlice = stagingBuffer.Allocation.MappedSlice();
@@ -757,9 +757,9 @@ std::shared_ptr<Image> Device::CreateImage(const ImageDesc& desc, const std::vec
 
         // Create staging buffer
         BufferDesc stagingDesc;
-        stagingDesc.Size = totalSize;
-        stagingDesc.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        stagingDesc.MemoryLocation = tekki::MemoryLocation::CpuToGpu;
+        stagingDesc.size = totalSize;
+        stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        stagingDesc.memory_location = tekki::MemoryLocation::CpuToGpu;
 
         Buffer stagingBuffer = CreateBufferImpl(raw_, globalAllocator_.get(), stagingDesc, "image staging buffer");
         auto mappedSlice = stagingBuffer.Allocation.MappedSlice();

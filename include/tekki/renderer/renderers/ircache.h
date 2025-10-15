@@ -12,6 +12,7 @@
 #include "tekki/backend/vulkan/shader.h"
 #include "tekki/render_graph/lib.h"
 #include "tekki/renderer/renderers/prefix_scan.h"
+#include "tekki/renderer/renderers/ircache_render_state.h"
 #include "tekki/renderer/renderers/wrc_render_state.h"
 #include "tekki/rust_shaders_shared/frame_constants.h"
 
@@ -23,22 +24,6 @@ constexpr float IRCACHE_GRID_CELL_DIAMETER = 0.16f * 0.125f;
 constexpr size_t IRCACHE_CASCADE_SIZE = 32;
 constexpr size_t IRCACHE_SAMPLES_PER_FRAME = 4;
 constexpr size_t IRCACHE_VALIDATION_SAMPLES_PER_FRAME = 4;
-
-struct IrcacheRenderState {
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheMetaBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheGridMetaBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheGridMetaBuf2;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheEntryCellBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheSpatialBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheIrradianceBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheAuxBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheLifeBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcachePoolBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheEntryIndirectionBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheRepositionProposalBuf;
-    tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IrcacheRepositionProposalCountBuf;
-    bool PendingIrradianceSum;
-};
 
 struct IrcacheIrradiancePendingSummation {
     tekki::render_graph::Handle<tekki::backend::vulkan::Buffer> IndirectArgsBuf;

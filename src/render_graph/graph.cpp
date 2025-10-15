@@ -14,7 +14,6 @@
 #include "tekki/render_graph/resource.h"
 #include "tekki/render_graph/resource_registry.h"
 #include "tekki/render_graph/pass_builder.h"
-#include "tekki/render_graph/desc_convert.h"
 #include "tekki/renderer/FrameConstantsLayout.h"
 
 namespace tekki::render_graph {
@@ -46,10 +45,7 @@ Handle<Image> RenderGraph::GetSwapChain() {
 
     Resources.push_back(GraphResourceInfo{GraphResourceImportInfo::Swapchain()});
 
-    ImageDesc desc;
-    desc.format = VK_FORMAT_R8G8B8A8_UNORM;
-    desc.extent = {1, 1, 1};
-    desc.image_type = ImageType::Tex2d;
+    ImageDesc desc = ImageDesc::New2d(VK_FORMAT_R8G8B8A8_UNORM, glm::u32vec2(1, 1));
 
     return Handle<Image>{res, desc};
 }
@@ -78,7 +74,7 @@ ResourceInfo RenderGraph::CalculateResourceInfo() const {
             const auto& createInfo = std::get<GraphResourceCreateInfo>(resource.Info);
             if (std::holds_alternative<ImageDesc>(createInfo.Desc)) {
                 const auto& desc = std::get<ImageDesc>(createInfo.Desc);
-                imageUsageFlags[resIdx] = vk::ImageUsageFlags(desc.usage);
+                imageUsageFlags[resIdx] = vk::ImageUsageFlags(desc.Usage);
             } else if (std::holds_alternative<BufferDesc>(createInfo.Desc)) {
                 const auto& desc = std::get<BufferDesc>(createInfo.Desc);
                 bufferUsageFlags[resIdx] = vk::BufferUsageFlags(desc.usage);
@@ -172,8 +168,8 @@ std::optional<PendingDebugPass> RenderGraph::HookDebugPass(const RecordedPass& p
     }
 
     auto isDebugCompatible = [](const ImageDesc& desc) -> bool {
-        return vk_sync::image_aspect_mask_from_format(desc.format) == VK_IMAGE_ASPECT_COLOR_BIT &&
-               desc.image_type == ImageType::Tex2d;
+        return vk_sync::image_aspect_mask_from_format(desc.Format) == VK_IMAGE_ASPECT_COLOR_BIT &&
+               desc.Type == ImageType::Tex2d;
     };
 
     for (const auto& srcRef : pass.Write) {
@@ -185,8 +181,8 @@ std::optional<PendingDebugPass> RenderGraph::HookDebugPass(const RecordedPass& p
                 const auto& imgDesc = std::get<ImageDesc>(createInfo.Desc);
                 if (isDebugCompatible(imgDesc)) {
                     ImageDesc modifiedDesc = imgDesc;
-                    modifiedDesc.mip_levels = 1;
-                    modifiedDesc.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+                    modifiedDesc.MipLevels = 1;
+                    modifiedDesc.Format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
 
                     Handle<Image> srcHandle{srcRef.Handle, modifiedDesc};
                     return PendingDebugPass{srcHandle};
@@ -199,10 +195,10 @@ std::optional<PendingDebugPass> RenderGraph::HookDebugPass(const RecordedPass& p
                 const auto& img = imageImport.resource;
 
                 // Imported resources must also support SAMPLED usage
-                if (img->desc.usage & VK_IMAGE_USAGE_SAMPLED_BIT && isDebugCompatible(img->desc)) {
+                if (img->desc.Usage & VK_IMAGE_USAGE_SAMPLED_BIT && isDebugCompatible(img->desc)) {
                     ImageDesc modifiedDesc = img->desc;
-                    modifiedDesc.mip_levels = 1;
-                    modifiedDesc.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+                    modifiedDesc.MipLevels = 1;
+                    modifiedDesc.Format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
 
                     Handle<Image> srcHandle{srcRef.Handle, modifiedDesc};
                     return PendingDebugPass{srcHandle};
@@ -265,19 +261,14 @@ ExecutingRenderGraph CompiledRenderGraph::BeginExecute(const RenderGraphExecutio
 
             if (std::holds_alternative<ImageDesc>(createInfo.Desc)) {
                 auto desc = std::get<ImageDesc>(createInfo.Desc);
-                desc.usage = static_cast<VkImageUsageFlags>(ResourceInfo_.ImageUsageFlags[resourceIdx]);
+                desc.Usage = static_cast<VkImageUsageFlags>(ResourceInfo_.ImageUsageFlags[resourceIdx]);
 
                 std::shared_ptr<Image> image;
                 try {
                     image = transientResourceCache->GetImage(desc);
                     if (!image) {
-                        auto vkDesc = ConvertImageDesc(desc);
-                        std::shared_ptr<tekki::backend::vulkan::Image> vkImage = params.Device->CreateImage(vkDesc, std::vector<uint8_t>{});
-
-                        // Create render_graph::Image wrapper
-                        image = std::make_shared<Image>(desc);
-                        image->raw = vkImage->Raw;
-                        image->Raw = vkImage->Raw;
+                        // Create backend image directly
+                        image = params.Device->CreateImage(desc, std::vector<uint8_t>{});
                     }
                 } catch (const std::exception& e) {
                     throw std::runtime_error("Failed to create image: " + std::string(e.what()));
@@ -295,13 +286,9 @@ ExecutingRenderGraph CompiledRenderGraph::BeginExecute(const RenderGraphExecutio
                 try {
                     buffer = transientResourceCache->GetBuffer(desc);
                     if (!buffer) {
-                        auto vkDesc = ConvertBufferDesc(desc);
-                        tekki::backend::vulkan::Buffer vkBuffer = params.Device->CreateBuffer(vkDesc, "rg buffer", {});
-
-                        // Create render_graph::Buffer wrapper
-                        buffer = std::make_shared<Buffer>(desc);
-                        buffer->raw = vkBuffer.Raw;
-                        buffer->Raw = vkBuffer.Raw;
+                        // Create backend buffer directly - need to wrap in shared_ptr
+                        auto rawBuffer = params.Device->CreateBuffer(desc, "rg buffer", {});
+                        buffer = std::make_shared<Buffer>(std::move(rawBuffer));
                     }
                 } catch (const std::exception& e) {
                     throw std::runtime_error("Failed to create buffer: " + std::string(e.what()));
@@ -532,7 +519,7 @@ void ExecutingRenderGraph::TransitionResource(Device* device, const CommandBuffe
         }
 
         auto aspectMask = vk_sync::image_aspect_mask_from_access_type_and_format(
-            access.AccessType, image->desc.format);
+            access.AccessType, image->desc.Format);
 
         if (!aspectMask) {
             throw std::runtime_error("Invalid image access");
@@ -609,11 +596,34 @@ void GlobalBarrier(Device* device, const CommandBuffer& cb,
 RetiredRenderGraph::RetiredRenderGraph(std::vector<RegistryResource>&& resources)
     : Resources(std::move(resources)) {}
 
+// Helper to extract resource pointer from variant
+template<typename Res>
+static const Res* BorrowResourceFromVariant(const RegistryResource& regResource) {
+    if (std::holds_alternative<AnyRenderResource::OwnedImage>(regResource.Resource)) {
+        if constexpr (std::is_same_v<Res, Image>) {
+            return std::get<AnyRenderResource::OwnedImage>(regResource.Resource).resource.get();
+        }
+    } else if (std::holds_alternative<AnyRenderResource::ImportedImage>(regResource.Resource)) {
+        if constexpr (std::is_same_v<Res, Image>) {
+            return std::get<AnyRenderResource::ImportedImage>(regResource.Resource).resource.get();
+        }
+    } else if (std::holds_alternative<AnyRenderResource::OwnedBuffer>(regResource.Resource)) {
+        if constexpr (std::is_same_v<Res, Buffer>) {
+            return std::get<AnyRenderResource::OwnedBuffer>(regResource.Resource).resource.get();
+        }
+    } else if (std::holds_alternative<AnyRenderResource::ImportedBuffer>(regResource.Resource)) {
+        if constexpr (std::is_same_v<Res, Buffer>) {
+            return std::get<AnyRenderResource::ImportedBuffer>(regResource.Resource).resource.get();
+        }
+    }
+    return nullptr;
+}
+
 template<typename Res>
 std::pair<const Res*, vk_sync::AccessType> RetiredRenderGraph::ExportedResource(const ExportedHandle<Res>& handle) const {
     const auto& regResource = Resources[handle.id];
     return std::make_pair(
-        Res::BorrowResource(regResource.Resource),
+        BorrowResourceFromVariant<Res>(regResource),
         regResource.AccessType
     );
 }
