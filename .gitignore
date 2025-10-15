@@ -80,3 +80,6 @@ libdxcompiler.dynlib
 
 
 /kajiya_out/
+
+# Scripts with sensitive information
+my_trans.sh
